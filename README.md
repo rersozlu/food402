@@ -53,7 +53,7 @@ This automatically adds `food402` to your `.mcp.json`. Open the file and update 
   "mcpServers": {
     "food402": {
       "command": "node",
-      "args": ["./node_modules/food402/dist/index.js"],
+      "args": ["./node_modules/food402/dist/src/index.js"],
       "env": {
         "TGO_EMAIL": "your-email@example.com",
         "TGO_PASSWORD": "your-password"

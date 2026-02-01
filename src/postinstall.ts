@@ -8,7 +8,7 @@ const mcpJsonPath = join(projectRoot, '.mcp.json');
 
 const food402Config = {
   command: "node",
-  args: ["./node_modules/food402/dist/index.js"],
+  args: ["./node_modules/food402/dist/src/index.js"],
   env: {
     TGO_EMAIL: "your-email@example.com",
     TGO_PASSWORD: "your-password"

@@ -4,7 +4,7 @@
   "description": "MCP server for ordering food from TGO Yemek",
   "type": "module",
   "bin": {
-    "food402": "./dist/index.js"
+    "food402": "./dist/src/index.js"
   },
   "files": [
     "dist"
@@ -12,7 +12,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc",
-    "postinstall": "node dist/postinstall.js",
+    "postinstall": "node dist/src/postinstall.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
