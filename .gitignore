@@ -1,3 +1,4 @@
+.env
 /node_modules
 /dist
 /build
@@ -5,3 +6,4 @@
 /logs
 /temp
 /cache
+/example_requests
