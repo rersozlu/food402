@@ -16,8 +16,6 @@ import {
   removeFromBasket,
   clearBasket,
   type BasketItem,
-  type ModifierProduct,
-  type IngredientExclusion,
 } from "./api.js";
 
 const server = new McpServer({
@@ -147,31 +145,17 @@ server.tool(
   }
 );
 
-// Zod schemas for add_to_basket
-const IngredientExclusionSchema = z.object({
-  id: z.number().describe("ID of ingredient to exclude"),
+// Simplified schemas for add_to_basket (avoiding recursive $ref which breaks some MCP clients)
+const ModifierProductSchema = z.object({
+  productId: z.number().describe("Selected option's product ID"),
+  modifierGroupId: z.number().describe("The modifier group this belongs to"),
 });
-
-const IngredientOptionsSchema = z.object({
-  excludes: z.array(IngredientExclusionSchema).default([]),
-  includes: z.tuple([]).default([]),
-});
-
-// Use any for the recursive schema to avoid TypeScript complexity
-const ModifierProductSchema: z.ZodType<any> = z.lazy(() =>
-  z.object({
-    productId: z.number().describe("Selected option's product ID"),
-    modifierGroupId: z.number().describe("The modifier group this belongs to"),
-    modifierProducts: z.array(ModifierProductSchema).default([]).describe("Nested modifiers (usually empty)"),
-    ingredientOptions: IngredientOptionsSchema.default({ excludes: [], includes: [] }),
-  })
-);
 
 const BasketItemSchema = z.object({
   productId: z.number().describe("Product ID to add"),
   quantity: z.number().describe("Quantity to add"),
-  modifierProducts: z.array(ModifierProductSchema).default([]).describe("Selected modifiers"),
-  ingredientOptions: IngredientOptionsSchema.default({ excludes: [], includes: [] }),
+  modifierProducts: z.array(ModifierProductSchema).optional().describe("Selected modifiers (optional)"),
+  excludeIngredientIds: z.array(z.number()).optional().describe("IDs of ingredients to exclude (optional)"),
 });
 
 // Tool: add_to_basket
@@ -183,18 +167,34 @@ server.tool(
     items: z.array(BasketItemSchema).describe("Items to add to basket"),
     latitude: z.number().describe("Latitude coordinate (number)"),
     longitude: z.number().describe("Longitude coordinate (number)"),
-    isFlashSale: z.boolean().default(false).describe("Enable flash sale discounts"),
-    storePickup: z.boolean().default(false).describe("false = delivery, true = pickup"),
+    isFlashSale: z.boolean().optional().describe("Enable flash sale discounts (default: false)"),
+    storePickup: z.boolean().optional().describe("false = delivery, true = pickup (default: false)"),
   },
   async (args) => {
     try {
+      // Transform simplified schema to full API format
+      const items: BasketItem[] = args.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        modifierProducts: (item.modifierProducts || []).map((mod) => ({
+          productId: mod.productId,
+          modifierGroupId: mod.modifierGroupId,
+          modifierProducts: [],
+          ingredientOptions: { excludes: [], includes: [] as [] },
+        })),
+        ingredientOptions: {
+          excludes: (item.excludeIngredientIds || []).map((id) => ({ id })),
+          includes: [] as [],
+        },
+      }));
+
       const result = await addToBasket({
         storeId: args.storeId,
-        items: args.items as BasketItem[],
+        items,
         latitude: args.latitude,
         longitude: args.longitude,
-        isFlashSale: args.isFlashSale,
-        storePickup: args.storePickup,
+        isFlashSale: args.isFlashSale ?? false,
+        storePickup: args.storePickup ?? false,
       });
       return formatResponse(result);
     } catch (error) {
