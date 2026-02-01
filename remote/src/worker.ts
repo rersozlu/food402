@@ -17,7 +17,13 @@ app.use(
   cors({
     origin: ["https://claude.ai", "https://www.claude.ai", "https://console.anthropic.com"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization", "Mcp-Session-Id", "mcp-protocol-version", "Last-Event-ID"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Mcp-Session-Id",
+      "mcp-protocol-version",
+      "Last-Event-ID",
+    ],
     exposeHeaders: ["Mcp-Session-Id", "mcp-protocol-version"],
     credentials: true,
   })
@@ -54,7 +60,7 @@ const mcpHandler = async (c: any) => {
       {
         status: 401,
         headers: {
-          "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource", scope="openid profile offline_access"`,
+          "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp", scope="openid profile offline_access"`,
         },
       }
     );

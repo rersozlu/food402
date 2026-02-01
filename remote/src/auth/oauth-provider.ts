@@ -135,6 +135,17 @@ export function createOAuthRoutes() {
     const state = c.req.query("state") || "";
     const codeChallenge = c.req.query("code_challenge");
     const codeChallengeMethod = c.req.query("code_challenge_method");
+    const resource = c.req.query("resource");
+
+    if (resource) {
+      const baseUrl = new URL(c.req.url).origin;
+      if (!resource.startsWith(baseUrl)) {
+        return c.html(
+          renderErrorPage("Invalid Request", "Invalid resource parameter."),
+          400
+        );
+      }
+    }
 
     // Validate required parameters
     if (!clientId || !redirectUri || responseType !== "code") {
@@ -170,6 +181,7 @@ export function createOAuthRoutes() {
         clientId,
         redirectUri,
         state,
+        resource: resource || undefined,
         codeChallenge,
         codeChallengeMethod,
       })
@@ -186,8 +198,19 @@ export function createOAuthRoutes() {
     const state = formData.get("state") as string;
     const codeChallenge = formData.get("code_challenge") as string | null;
     const codeChallengeMethod = (formData.get("code_challenge_method") as "plain" | "S256") || "plain";
+    const resource = formData.get("resource") as string | null;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+
+    if (resource) {
+      const baseUrl = new URL(c.req.url).origin;
+      if (!resource.startsWith(baseUrl)) {
+        return c.html(
+          renderErrorPage("Invalid Request", "Invalid resource parameter."),
+          400
+        );
+      }
+    }
 
     // Validate client
     const client = await store.getClient(clientId);
@@ -237,6 +260,7 @@ export function createOAuthRoutes() {
         redirectUri,
         userId,
         sessionId,
+        resource: resource || undefined,
         expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
         codeChallenge: codeChallenge || undefined,
         codeChallengeMethod: codeChallenge ? codeChallengeMethod : undefined,
@@ -259,6 +283,7 @@ export function createOAuthRoutes() {
           clientId,
           redirectUri,
           state,
+          resource: resource || undefined,
           codeChallenge: codeChallenge || undefined,
           codeChallengeMethod: codeChallengeMethod || undefined,
           error: "Giriş başarısız. E-posta veya şifrenizi kontrol edin.",
@@ -280,6 +305,7 @@ export function createOAuthRoutes() {
     let clientSecret: string | undefined;
     let refreshToken: string | undefined;
     let codeVerifier: string | undefined;
+    let resource: string | undefined;
 
     const contentType = c.req.header("content-type") || "";
 
@@ -292,6 +318,7 @@ export function createOAuthRoutes() {
       clientSecret = formData.get("client_secret") as string;
       refreshToken = formData.get("refresh_token") as string;
       codeVerifier = formData.get("code_verifier") as string;
+      resource = formData.get("resource") as string;
     } else {
       const body = await c.req.json();
       grantType = body.grant_type;
@@ -301,6 +328,7 @@ export function createOAuthRoutes() {
       clientSecret = body.client_secret;
       refreshToken = body.refresh_token;
       codeVerifier = body.code_verifier;
+      resource = body.resource;
     }
 
     // Check for Basic auth header
@@ -352,6 +380,17 @@ export function createOAuthRoutes() {
         return c.json({ error: "invalid_grant", error_description: "Redirect URI mismatch" }, 400);
       }
 
+      if (authCode.resource) {
+        if (resource && resource !== authCode.resource) {
+          return c.json({ error: "invalid_grant", error_description: "Resource mismatch" }, 400);
+        }
+      } else if (resource) {
+        const baseUrl = new URL(c.req.url).origin;
+        if (!resource.startsWith(baseUrl)) {
+          return c.json({ error: "invalid_target", error_description: "Invalid resource" }, 400);
+        }
+      }
+
       // Verify PKCE if used
       if (authCode.codeChallenge) {
         if (!codeVerifier) {
@@ -395,11 +434,12 @@ export function createOAuthRoutes() {
       // This allows the /mcp endpoint to reconstruct a working session from the JWT itself
       // even if the KV read misses due to edge propagation delays
       const baseUrl = new URL(c.req.url).origin;
+      const audience = authCode.resource || resource || baseUrl;
       const secret = new TextEncoder().encode(c.env.JWT_SECRET);
       const jwt = await new SignJWT({
         sub: session.userId,
         sid: session.id,
-        aud: baseUrl,  // Audience claim (RFC 8707)
+        aud: audience,  // Audience claim (RFC 8707)
         iss: baseUrl,  // Issuer claim
         // Embed encrypted credentials for KV-independent operation
         email_enc: session.encryptedEmail,

@@ -44,6 +44,7 @@ export interface OAuthAuthorizationCode {
   redirectUri: string;
   userId: string;
   sessionId: string;
+  resource?: string;
   expiresAt: number;
   codeChallenge?: string;
   codeChallengeMethod?: "plain" | "S256";

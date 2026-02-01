@@ -4,6 +4,7 @@ export interface LoginPageParams {
   clientId: string;
   redirectUri: string;
   state: string;
+  resource?: string;
   codeChallenge?: string;
   codeChallengeMethod?: string;
   error?: string;
@@ -185,6 +186,7 @@ export function renderLoginPage(params: LoginPageParams): string {
       <input type="hidden" name="client_id" value="${escapeHtml(params.clientId)}">
       <input type="hidden" name="redirect_uri" value="${escapeHtml(params.redirectUri)}">
       <input type="hidden" name="state" value="${escapeHtml(params.state)}">
+      ${params.resource ? `<input type="hidden" name="resource" value="${escapeHtml(params.resource)}">` : ""}
       ${params.codeChallenge ? `<input type="hidden" name="code_challenge" value="${escapeHtml(params.codeChallenge)}">` : ""}
       ${params.codeChallengeMethod ? `<input type="hidden" name="code_challenge_method" value="${escapeHtml(params.codeChallengeMethod)}">` : ""}
 
