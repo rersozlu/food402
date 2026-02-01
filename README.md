@@ -25,6 +25,31 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 Replace `your-email@example.com` and `your-password` with your TGO Yemek credentials.
 
+## Local Installation (Claude Code)
+
+For project-specific installation with Claude Code:
+
+```bash
+npm install food402
+```
+
+This automatically adds `food402` to your `.mcp.json`. Open the file and update your credentials:
+
+```json
+{
+  "mcpServers": {
+    "food402": {
+      "command": "node",
+      "args": ["./node_modules/food402/dist/index.js"],
+      "env": {
+        "TGO_EMAIL": "your-email@example.com",
+        "TGO_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
 ## Prerequisites
 
 ### Account Setup Required

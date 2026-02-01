@@ -1,6 +1,6 @@
 {
   "name": "food402",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MCP server for ordering food from TGO Yemek",
   "type": "module",
   "bin": {
@@ -12,6 +12,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc",
+    "postinstall": "node dist/postinstall.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

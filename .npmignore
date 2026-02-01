@@ -1,0 +1,8 @@
+src/
+tsconfig.json
+.env
+.env.example
+*.md
+.git/
+.gitignore
+node_modules/
