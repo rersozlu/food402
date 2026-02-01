@@ -15,6 +15,11 @@ import {
   getBasket,
   removeFromBasket,
   clearBasket,
+  searchRestaurants,
+  getCities,
+  getDistricts,
+  getNeighborhoods,
+  addAddress,
   type BasketItem,
 } from "./api.js";
 
@@ -239,6 +244,127 @@ server.tool("clear_basket", "Clear the entire cart", {}, async () => {
     return formatError(error);
   }
 });
+
+// Tool: search_restaurants
+server.tool(
+  "search_restaurants",
+  "Search restaurants and products by keyword",
+  {
+    searchQuery: z.string().describe("Search keyword (e.g., 'dürüm', 'pizza', 'burger')"),
+    latitude: z.string().describe("Latitude coordinate"),
+    longitude: z.string().describe("Longitude coordinate"),
+    page: z.number().optional().describe("Page number for pagination (default: 1)"),
+  },
+  async (args) => {
+    try {
+      const result = await searchRestaurants(
+        args.searchQuery,
+        args.latitude,
+        args.longitude,
+        args.page ?? 1
+      );
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_cities
+server.tool(
+  "get_cities",
+  "Get list of all cities for address selection",
+  {},
+  async () => {
+    try {
+      const result = await getCities();
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_districts
+server.tool(
+  "get_districts",
+  "Get districts for a city",
+  {
+    cityId: z.number().describe("City ID"),
+  },
+  async (args) => {
+    try {
+      const result = await getDistricts(args.cityId);
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_neighborhoods
+server.tool(
+  "get_neighborhoods",
+  "Get neighborhoods for a district",
+  {
+    districtId: z.number().describe("District ID"),
+  },
+  async (args) => {
+    try {
+      const result = await getNeighborhoods(args.districtId);
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: add_address
+server.tool(
+  "add_address",
+  "Add a new delivery address. Use get_cities, get_districts, get_neighborhoods to find location IDs first.",
+  {
+    name: z.string().describe("First name"),
+    surname: z.string().describe("Last name"),
+    phone: z.string().describe("Phone number without country code (e.g., '5356437070')"),
+    addressName: z.string().describe("Name for this address (e.g., 'Home', 'Work')"),
+    addressLine: z.string().describe("Street address"),
+    cityId: z.number().describe("City ID (from get_cities)"),
+    districtId: z.number().describe("District ID (from get_districts)"),
+    neighborhoodId: z.number().describe("Neighborhood ID (from get_neighborhoods)"),
+    latitude: z.string().describe("Latitude coordinate"),
+    longitude: z.string().describe("Longitude coordinate"),
+    apartmentNumber: z.string().optional().describe("Apartment/building number"),
+    floor: z.string().optional().describe("Floor number"),
+    doorNumber: z.string().optional().describe("Door number"),
+    addressDescription: z.string().optional().describe("Additional details/directions"),
+    elevatorAvailable: z.boolean().optional().describe("Whether elevator is available"),
+  },
+  async (args) => {
+    try {
+      const result = await addAddress({
+        name: args.name,
+        surname: args.surname,
+        phone: args.phone,
+        addressName: args.addressName,
+        addressLine: args.addressLine,
+        cityId: args.cityId,
+        districtId: args.districtId,
+        neighborhoodId: args.neighborhoodId,
+        latitude: args.latitude,
+        longitude: args.longitude,
+        apartmentNumber: args.apartmentNumber,
+        floor: args.floor,
+        doorNumber: args.doorNumber,
+        addressDescription: args.addressDescription,
+        elevatorAvailable: args.elevatorAvailable,
+      });
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
 
 async function main() {
   const transport = new StdioServerTransport();

@@ -760,3 +760,358 @@ export async function clearBasket(): Promise<void> {
     throw new Error(`Failed to clear basket: ${response.status} ${response.statusText}`);
   }
 }
+
+// Search Restaurants interfaces
+export interface SearchProduct {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  imageUrl?: string;
+}
+
+export interface SearchRestaurant extends Restaurant {
+  products: SearchProduct[];  // Matching products shown in search
+  warning?: string;  // Warning message for closed restaurants
+}
+
+export interface SearchRestaurantsResponse {
+  restaurants: SearchRestaurant[];
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  searchQuery: string;
+}
+
+// Location helper interfaces
+export interface City {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface District {
+  id: number;
+  name: string;
+}
+
+export interface Neighborhood {
+  id: number;
+  name: string;
+}
+
+export interface CitiesResponse {
+  cities: City[];
+  count: number;
+}
+
+export interface DistrictsResponse {
+  districts: District[];
+  count: number;
+  cityId: number;
+}
+
+export interface NeighborhoodsResponse {
+  neighborhoods: Neighborhood[];
+  count: number;
+  districtId: number;
+}
+
+export async function getCities(): Promise<CitiesResponse> {
+  const token = await getToken();
+
+  const response = await fetch(
+    `${API_BASE}/web-user-apimemberaddress-santral/cities`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch cities: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  const cities: City[] = (data.cities || []).map((c: any) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name
+  }));
+
+  return {
+    cities,
+    count: cities.length
+  };
+}
+
+export async function getDistricts(cityId: number): Promise<DistrictsResponse> {
+  const token = await getToken();
+
+  const response = await fetch(
+    `${API_BASE}/web-user-apimemberaddress-santral/cities/${cityId}/districts`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch districts: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  const districts: District[] = (data.districts || []).map((d: any) => ({
+    id: d.id,
+    name: d.name
+  }));
+
+  return {
+    districts,
+    count: districts.length,
+    cityId
+  };
+}
+
+export async function getNeighborhoods(districtId: number): Promise<NeighborhoodsResponse> {
+  const token = await getToken();
+
+  const response = await fetch(
+    `${API_BASE}/web-user-apimemberaddress-santral/districts/${districtId}/neighborhoods`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch neighborhoods: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  const neighborhoods: Neighborhood[] = (data.neighborhoods || []).map((n: any) => ({
+    id: n.id,
+    name: n.name
+  }));
+
+  return {
+    neighborhoods,
+    count: neighborhoods.length,
+    districtId
+  };
+}
+
+// Add Address interfaces
+export interface AddAddressRequest {
+  name: string;
+  surname: string;
+  phone: string;              // Without country code, e.g. "5356437070"
+  apartmentNumber?: string;
+  floor?: string;
+  doorNumber?: string;
+  addressName: string;        // User-friendly name like "Home", "Work"
+  addressDescription?: string; // Additional details
+  addressLine: string;        // Street address
+  cityId: number;
+  districtId: number;
+  neighborhoodId: number;
+  latitude: string;
+  longitude: string;
+  countryCode?: string;       // Default: "TR"
+  elevatorAvailable?: boolean; // Default: false
+}
+
+export interface AddAddressResponse {
+  success: boolean;
+  address?: Address;          // Returned address on success
+  requiresOtp?: boolean;      // True if 429 received
+  message: string;
+}
+
+export async function addAddress(request: AddAddressRequest): Promise<AddAddressResponse> {
+  const token = await getToken();
+
+  const payload = {
+    name: request.name,
+    surname: request.surname,
+    phone: request.phone,
+    apartmentNumber: request.apartmentNumber ?? "",
+    floor: request.floor ?? "",
+    doorNumber: request.doorNumber ?? "",
+    addressName: request.addressName,
+    addressDescription: request.addressDescription ?? "",
+    addressLine: request.addressLine,
+    cityId: request.cityId,
+    districtId: request.districtId,
+    neighborhoodId: request.neighborhoodId,
+    latitude: request.latitude,
+    longitude: request.longitude,
+    countryCode: request.countryCode ?? "TR",
+    elevatorAvailable: request.elevatorAvailable ?? false
+  };
+
+  const response = await fetch(`${API_BASE}/web-user-apimemberaddress-santral/addresses`, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json, text/plain, */*",
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": USER_AGENT,
+      "Origin": "https://tgoyemek.com",
+      "x-correlationid": randomUUID(),
+      "pid": randomUUID(),
+      "sid": randomUUID()
+    },
+    body: JSON.stringify(payload)
+  });
+
+  // Handle OTP required case (429 Too Many Requests)
+  if (response.status === 429) {
+    return {
+      success: false,
+      requiresOtp: true,
+      message: "OTP verification required. Please add this address through the TGO Yemek website."
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to add address: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Transform the returned address
+  const address: Address = {
+    id: data.id,
+    name: data.name,
+    surname: data.surname,
+    phone: data.phone,
+    countryPhoneCode: data.countryPhoneCode ?? "+90",
+    addressLine: data.addressLine,
+    addressName: data.addressName,
+    postalCode: data.postalCode ?? "",
+    cityId: data.cityId,
+    cityName: data.cityName ?? "",
+    districtId: data.districtId,
+    districtName: data.districtName ?? "",
+    neighborhoodId: data.neighborhoodId,
+    neighborhoodName: data.neighborhoodName ?? "",
+    latitude: data.latitude,
+    longitude: data.longitude,
+    addressDescription: data.addressDescription ?? "",
+    apartmentNumber: data.apartmentNumber ?? "",
+    floor: data.floor ?? "",
+    doorNumber: data.doorNumber ?? "",
+    addressType: data.addressType ?? "HOME",
+    elevatorAvailable: data.elevatorAvailable ?? false
+  };
+
+  return {
+    success: true,
+    address,
+    message: "Address added successfully"
+  };
+}
+
+export async function searchRestaurants(
+  searchQuery: string,
+  latitude: string,
+  longitude: string,
+  page: number = 1
+): Promise<SearchRestaurantsResponse> {
+  const token = await getToken();
+  const pageSize = 50;
+
+  const params = new URLSearchParams({
+    searchQuery,
+    latitude,
+    longitude,
+    pageSize: pageSize.toString(),
+    page: page.toString()
+  });
+
+  const response = await fetch(
+    `${API_BASE}/web-restaurant-apirestaurant-santral/restaurants/in/search?${params}`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to search restaurants: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Transform to simplified format for AI context efficiency
+  const restaurants: SearchRestaurant[] = (data.restaurants || []).map((r: any) => {
+    const isClosed = r.isClosed ?? false;
+    return {
+      id: r.id,
+      name: r.name,
+      kitchen: r.kitchen ?? "",
+      rating: r.rating ?? 0,
+      ratingText: r.ratingText ?? "",
+      minBasketPrice: r.minBasketPrice ?? 0,
+      averageDeliveryInterval: r.averageDeliveryInterval ?? "",
+      distance: r.location?.distance ?? 0,
+      neighborhoodName: r.location?.neighborhoodName ?? "",
+      isClosed,
+      campaignText: r.campaignText,
+      products: (r.products || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price?.salePrice ?? p.price ?? 0,
+        imageUrl: p.imageUrl
+      })),
+      ...(isClosed && { warning: "This restaurant is currently closed. Do not proceed with ordering from this restaurant." })
+    };
+  });
+
+  return {
+    restaurants,
+    totalCount: data.restaurantCount ?? 0,
+    currentPage: page,
+    pageSize,
+    hasNextPage: !!data.links?.next?.href,
+    searchQuery: data.searchQuery ?? searchQuery
+  };
+}

@@ -30,7 +30,8 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
     }
   }
 }
-```
+```             
+
 
 Or using npm start:
 
@@ -56,6 +57,7 @@ Or using npm start:
 |------|-------------|------------|
 | `get_addresses` | Get user's saved delivery addresses | None |
 | `get_restaurants` | Search restaurants near a location | `latitude`, `longitude`, `page?` |
+| `search_restaurants` | Search restaurants and products by keyword | `searchQuery`, `latitude`, `longitude`, `page?` |
 | `get_restaurant_menu` | Get restaurant's full menu | `restaurantId`, `latitude`, `longitude` |
 | `get_product_details` | Get product customization options | `restaurantId`, `productId`, `latitude`, `longitude` |
 | `get_product_recommendations` | Get "goes well with" suggestions | `restaurantId`, `productIds[]` |
@@ -63,6 +65,10 @@ Or using npm start:
 | `get_basket` | Get current cart contents | None |
 | `remove_from_basket` | Remove item from cart | `itemId` |
 | `clear_basket` | Clear entire cart | None |
+| `get_cities` | Get list of all cities for address selection | None |
+| `get_districts` | Get districts for a city | `cityId` |
+| `get_neighborhoods` | Get neighborhoods for a district | `districtId` |
+| `add_address` | Add a new delivery address | `name`, `surname`, `phone`, `addressName`, `addressLine`, `cityId`, `districtId`, `neighborhoodId`, `latitude`, `longitude`, etc. |
 
 ## Usage Examples
 
