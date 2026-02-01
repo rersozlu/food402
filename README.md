@@ -1,28 +1,19 @@
-# TGO Yemek MCP Server
+# Food402 MCP Server
 
-An MCP (Model Context Protocol) server that exposes TGO Yemek API functions as tools for AI assistants to order food.
+[![npm version](https://img.shields.io/npm/v/food402.svg)](https://www.npmjs.com/package/food402)
 
-## Prerequisites
-
-- Node.js 18+
-- A TGO Yemek account (email and password)
+An MCP (Model Context Protocol) server that enables AI assistants to order food from TGO Yemek. Simply chat with your AI assistant to browse restaurants, build your order, and complete checkout.
 
 ## Installation
-
-```bash
-npm install
-```
-
-## MCP Configuration
 
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
-    "tgo-yemek": {
+    "food402": {
       "command": "npx",
-      "args": ["tsx", "/path/to/food402/src/index.ts"],
+      "args": ["-y", "food402"],
       "env": {
         "TGO_EMAIL": "your-email@example.com",
         "TGO_PASSWORD": "your-password"
@@ -30,25 +21,61 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
     }
   }
 }
-```             
+```
 
+Replace `your-email@example.com` and `your-password` with your TGO Yemek credentials.
 
-Or using npm start:
+## Prerequisites
 
-```json
-{
-  "mcpServers": {
-    "tgo-yemek": {
-      "command": "npm",
-      "args": ["start"],
-      "cwd": "/path/to/food402",
-      "env": {
-        "TGO_EMAIL": "your-email@example.com",
-        "TGO_PASSWORD": "your-password"
-      }
-    }
-  }
-}
+### Account Setup Required
+
+Before using this MCP server, you must have a TGO Yemek account with:
+
+1. **TGO Yemek account** - Create one at tgoyemek.com if you don't have one
+2. **Payment card saved to your account** - The checkout process requires a saved card; you cannot enter card details during ordering
+3. **At least one delivery address saved** (recommended) - You can add addresses through the MCP, but having one pre-configured makes ordering faster
+
+## Quick Start: Ordering Flow
+
+Here's the typical workflow when ordering food through the AI assistant:
+
+### 1. Select Delivery Address
+```
+"Show me my saved addresses"
+"Select my home address for delivery"
+```
+
+### 2. Find Restaurants
+```
+"What restaurants are near me?"
+"Search for pizza restaurants"
+"Find places that serve lahmacun"
+```
+
+### 3. Browse Menu & Add Items
+```
+"Show me the menu for [restaurant name]"
+"Add 2 lahmacun to my cart"
+"What customization options are available for this item?"
+```
+
+### 4. Review & Checkout
+```
+"Show me my basket"
+"Remove the drink from my order"
+"I'm ready to checkout"
+```
+
+### 5. Place Order
+```
+"Place my order using my saved card"
+```
+*Note: A browser window will open for 3D Secure verification. Complete the verification to finalize your order.*
+
+### 6. Track Order
+```
+"What's the status of my order?"
+"Show me my recent orders"
 ```
 
 ## Available Tools
@@ -77,31 +104,16 @@ Or using npm start:
 | `get_orders` | Get user's order history with status | `page?` |
 | `get_order_detail` | Get detailed order info including delivery status | `orderId` |
 
-## Usage Examples
-
-### Get delivery addresses
-```
-"Show me my saved addresses"
-```
-
-### Find restaurants
-```
-"Find restaurants near my home address"
-```
-
-### Browse menu
-```
-"Show me the menu for restaurant ID 12345"
-```
-
-### Order food
-```
-"Add 2 lahmacun to my cart from this restaurant"
-```
-
 ## Development
 
 ```bash
+# Clone the repository
+git clone https://github.com/rersozlu/food402.git
+cd food402
+
+# Install dependencies
+npm install
+
 # Run in development mode
 npm start
 
@@ -109,15 +121,6 @@ npm start
 npm run build
 ```
 
-## Testing
+## License
 
-Test the MCP server locally:
-
-```bash
-# List available tools
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | npx tsx src/index.ts
-
-# Test a tool (requires credentials)
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_addresses","arguments":{}}}' | \
-  TGO_EMAIL="email" TGO_PASSWORD="pass" npx tsx src/index.ts
-```
+MIT

@@ -1,11 +1,32 @@
 {
-  "name": "food402-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for food402 API",
+  "name": "food402",
+  "version": "1.0.2",
+  "description": "MCP server for ordering food from TGO Yemek",
   "type": "module",
+  "bin": {
+    "food402": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "start": "tsx src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "food",
+    "tgo-yemek",
+    "claude",
+    "ai",
+    "food-ordering"
+  ],
+  "author": "rafiers",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rersozlu/food402"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
