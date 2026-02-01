@@ -22,7 +22,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "tgo-yemek": {
       "command": "npx",
-      "args": ["tsx", "/path/to/yemeksepeti/src/index.ts"],
+      "args": ["tsx", "/path/to/food402/src/index.ts"],
       "env": {
         "TGO_EMAIL": "your-email@example.com",
         "TGO_PASSWORD": "your-password"
@@ -41,7 +41,7 @@ Or using npm start:
     "tgo-yemek": {
       "command": "npm",
       "args": ["start"],
-      "cwd": "/path/to/yemeksepeti",
+      "cwd": "/path/to/food402",
       "env": {
         "TGO_EMAIL": "your-email@example.com",
         "TGO_PASSWORD": "your-password"

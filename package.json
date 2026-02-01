@@ -1,7 +1,7 @@
 {
-  "name": "yemeksepeti-mcp",
+  "name": "food402-mcp",
   "version": "1.0.0",
-  "description": "MCP server for Yemeksepeti API",
+  "description": "MCP server for food402 API",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
