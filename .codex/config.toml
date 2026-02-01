@@ -1,0 +1,7 @@
+[mcp_servers.food402]
+command = "node"
+args = ["./node_modules/food402/dist/src/index.js"]
+
+[mcp_servers.food402.env]
+TGO_EMAIL = "your-email@example.com"
+TGO_PASSWORD = "your-password"

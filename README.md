@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/food402.svg)](https://www.npmjs.com/package/food402)
 
-An MCP (Model Context Protocol) server that enables AI assistants to order food from TGO Yemek. Simply chat with your AI assistant to browse restaurants, build your order, and complete checkout.
+An MCP (Model Context Protocol) server that enables AI assistants to order food from TGO Yemek. Simply chat with your AI assistant to browse restaurants, build your order, and complete checkout. Works with Claude, ChatGPT (Developer Mode), and Codex CLI via MCP.
 
 ## Deployment Options
 
@@ -10,7 +10,7 @@ Food402 supports two deployment methods:
 
 | Method | Best For | Transport | Auth |
 |--------|----------|-----------|------|
-| **Local MCP Server** | Claude Desktop, Claude Code | stdio | Environment variables |
+| **Local MCP Server** | Claude Desktop, Claude Code, ChatGPT (Developer Mode), Codex CLI | stdio | Environment variables |
 | **Remote MCP Server** | Claude.ai (web) | HTTP | OAuth 2.0 |
 
 ---
@@ -46,7 +46,7 @@ For project-specific installation with Claude Code:
 npm install food402
 ```
 
-This automatically adds `food402` to your `.mcp.json`. Open the file and update your credentials:
+This automatically adds `food402` to your `.mcp.json` and creates/updates `.codex/config.toml` for Codex CLI. Open the file(s) and update your credentials:
 
 ```json
 {
@@ -62,6 +62,53 @@ This automatically adds `food402` to your `.mcp.json`. Open the file and update 
   }
 }
 ```
+
+---
+
+### ChatGPT (Developer Mode)
+
+ChatGPT apps in Developer Mode can connect to local MCP servers over stdio. Use the same local server configuration and provide your credentials as environment variables.
+
+1. Open ChatGPT **Settings > Developer** (or your app’s Developer Mode settings)
+2. Add a **Custom MCP Server**
+3. Set the command to run the local server:
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "food402"],
+  "env": {
+    "TGO_EMAIL": "your-email@example.com",
+    "TGO_PASSWORD": "your-password"
+  }
+}
+```
+
+> **Tip:** If your ChatGPT client supports project-level MCP config files, you can reuse the same JSON from Claude Code (`.mcp.json`) with the command above.
+
+### Codex CLI (Terminal)
+
+Codex supports MCP servers over stdio and uses TOML config files (not `.mcp.json`). You can add servers via the CLI (global) or a project-scoped `.codex/config.toml` (trusted projects).
+
+**Option A: CLI (global config: `~/.codex/config.toml`)**
+
+```bash
+codex mcp add food402 --env TGO_EMAIL=your-email@example.com --env TGO_PASSWORD=your-password -- npx -y food402
+```
+
+**Option B: Project config (`.codex/config.toml`)**
+
+```toml
+[mcp_servers.food402]
+command = "node"
+args = ["./node_modules/food402/dist/src/index.js"]
+
+[mcp_servers.food402.env]
+TGO_EMAIL = "your-email@example.com"
+TGO_PASSWORD = "your-password"
+```
+
+> **Tip:** Installing via `npm install food402` will create or update `.codex/config.toml` in the project root and add the `food402` entry automatically.
 
 ---
 
