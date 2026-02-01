@@ -4,7 +4,20 @@
 
 An MCP (Model Context Protocol) server that enables AI assistants to order food from TGO Yemek. Simply chat with your AI assistant to browse restaurants, build your order, and complete checkout.
 
-## Installation
+## Deployment Options
+
+Food402 supports two deployment methods:
+
+| Method | Best For | Transport | Auth |
+|--------|----------|-----------|------|
+| **Local MCP Server** | Claude Desktop, Claude Code | stdio | Environment variables |
+| **Remote MCP Server** | Claude.ai (web) | HTTP | OAuth 2.0 |
+
+---
+
+## Local MCP Server (npm package)
+
+### Claude Desktop
 
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
@@ -25,7 +38,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 Replace `your-email@example.com` and `your-password` with your TGO Yemek credentials.
 
-## Local Installation (Claude Code)
+### Claude Code
 
 For project-specific installation with Claude Code:
 
@@ -49,6 +62,25 @@ This automatically adds `food402` to your `.mcp.json`. Open the file and update 
   }
 }
 ```
+
+---
+
+## Remote MCP Server (Claude.ai Web)
+
+For Claude.ai web access, use the remote MCP server deployed on Cloudflare Workers.
+
+### Connect to Claude.ai
+
+1. Go to Claude.ai **Settings > Connectors**
+2. Click **"Add Custom Connector"**
+3. Enter the remote server URL
+4. Complete the OAuth flow by logging in with your TGO Yemek credentials
+
+No local setup required—your credentials are securely stored via OAuth.
+
+> **Self-hosting?** See [remote/README.md](./remote/README.md) for deployment instructions.
+
+---
 
 ## Prerequisites
 
@@ -131,11 +163,35 @@ Here's the typical workflow when ordering food through the AI assistant:
 
 ## Development
 
-```bash
-# Clone the repository
-git clone https://github.com/rersozlu/food402.git
-cd food402
+### Repository Structure
 
+```
+food402/
+├── src/                    # Local MCP server (stdio transport)
+│   ├── index.ts            # MCP entry point with tool definitions
+│   ├── auth.ts             # TGO auth with token caching
+│   ├── api.ts              # Thin wrapper around shared/api.ts
+│   └── postinstall.ts      # Auto-configures .mcp.json on npm install
+├── shared/                 # Shared code between local and remote
+│   ├── api.ts              # Token-parameterized TGO API functions
+│   └── types.ts            # TypeScript interfaces
+├── remote/                 # Remote MCP server (HTTP transport)
+│   ├── src/
+│   │   ├── worker.ts       # Cloudflare Worker entry (Hono)
+│   │   ├── server.ts       # MCP server with tool definitions
+│   │   ├── auth/           # OAuth 2.0 provider + TGO login
+│   │   ├── payment/        # 3DS verification page handler
+│   │   └── session/        # Encrypted session management
+│   ├── wrangler.toml       # CF Workers config
+│   └── package.json        # Remote-specific dependencies
+├── package.json            # Root package (npm: food402)
+├── README.md
+└── CLAUDE.md
+```
+
+### Local Server Development
+
+```bash
 # Install dependencies
 npm install
 
@@ -145,6 +201,23 @@ npm start
 # Build TypeScript
 npm run build
 ```
+
+### Remote Server Development
+
+```bash
+cd remote
+
+# Install dependencies
+npm install
+
+# Run local dev server (http://localhost:8787)
+npm run dev
+
+# Deploy to Cloudflare Workers
+npm run deploy
+```
+
+See [remote/README.md](./remote/README.md) for full deployment instructions including KV namespace setup and secrets configuration.
 
 ## License
 
