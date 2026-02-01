@@ -1456,12 +1456,12 @@ export async function placeOrder(cardId: number): Promise<PlaceOrderResponse> {
     method: "POST",
     headers: paymentHeaders,
     body: JSON.stringify({
-      customerSelectedThreeD: true,
+      customerSelectedThreeD: false,
       paymentOptions: [
         {
           name: "payWithCard",
           cardNo: "",
-          customerSelectedThreeD: true
+          customerSelectedThreeD: false
         }
       ],
       callbackUrl: "https://tgoyemek.com/odeme"
