@@ -56,6 +56,7 @@ Or using npm start:
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `get_addresses` | Get user's saved delivery addresses | None |
+| `select_address` | Select delivery address (must call before ordering) | `addressId` |
 | `get_restaurants` | Search restaurants near a location | `latitude`, `longitude`, `page?` |
 | `search_restaurants` | Search restaurants and products by keyword | `searchQuery`, `latitude`, `longitude`, `page?` |
 | `get_restaurant_menu` | Get restaurant's full menu | `restaurantId`, `latitude`, `longitude` |
@@ -69,6 +70,12 @@ Or using npm start:
 | `get_districts` | Get districts for a city | `cityId` |
 | `get_neighborhoods` | Get neighborhoods for a district | `districtId` |
 | `add_address` | Add a new delivery address | `name`, `surname`, `phone`, `addressName`, `addressLine`, `cityId`, `districtId`, `neighborhoodId`, `latitude`, `longitude`, etc. |
+| `get_saved_cards` | Get user's saved payment cards (masked) | None |
+| `checkout_ready` | Get basket ready for checkout with payment context | None |
+| `set_order_note` | Set order note and delivery preferences | `note?`, `noServiceWare?`, `contactlessDelivery?`, `dontRingBell?` |
+| `place_order` | Place order with 3D Secure (opens browser for verification) | `cardId` |
+| `get_orders` | Get user's order history with status | `page?` |
+| `get_order_detail` | Get detailed order info including delivery status | `orderId` |
 
 ## Usage Examples
 

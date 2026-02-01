@@ -26,6 +26,7 @@ import {
   placeOrder,
   getOrders,
   getOrderDetail,
+  updateCustomerNote,
   type BasketItem,
 } from "./api.js";
 
@@ -486,16 +487,73 @@ server.tool(
   }
 );
 
+// Tool: set_order_note
+server.tool(
+  "set_order_note",
+  "Set order note and service preferences. Call before place_order.",
+  {
+    note: z.string().optional().describe("Note for courier/restaurant"),
+    noServiceWare: z.boolean().optional().describe("Don't include plastic/cutlery (default: false)"),
+    contactlessDelivery: z.boolean().optional().describe("Leave at door (default: false)"),
+    dontRingBell: z.boolean().optional().describe("Don't ring doorbell (default: false)"),
+  },
+  async (args) => {
+    try {
+      await updateCustomerNote({
+        customerNote: args.note ?? "",
+        noServiceWare: args.noServiceWare ?? false,
+        contactlessDelivery: args.contactlessDelivery ?? false,
+        dontRingBell: args.dontRingBell ?? false,
+      });
+      return formatResponse({
+        success: true,
+        message: "Order note and preferences saved"
+      });
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
 // Tool: place_order
 server.tool(
   "place_order",
-  "Place the order using a saved card. Requires items in basket and a valid card.",
+  "Place the order using a saved card with 3D Secure. Opens browser for bank verification if needed.",
   {
     cardId: z.number().describe("Card ID from get_saved_cards"),
   },
   async (args) => {
     try {
       const result = await placeOrder(args.cardId);
+
+      // If 3D Secure is required and we have HTML content, open it in browser
+      if (result.requires3DSecure && result.htmlContent) {
+        const { writeFileSync } = await import("fs");
+        const { execSync } = await import("child_process");
+        const { tmpdir } = await import("os");
+        const { join } = await import("path");
+
+        const tempFile = join(tmpdir(), `3dsecure_${Date.now()}.html`);
+        writeFileSync(tempFile, result.htmlContent);
+
+        // Open in default browser (works on macOS, Linux, Windows)
+        const platform = process.platform;
+        if (platform === "darwin") {
+          execSync(`open "${tempFile}"`);
+        } else if (platform === "win32") {
+          execSync(`start "" "${tempFile}"`);
+        } else {
+          execSync(`xdg-open "${tempFile}"`);
+        }
+
+        return formatResponse({
+          ...result,
+          htmlContent: undefined, // Don't return the full HTML in response
+          browserOpened: true,
+          message: "3D Secure verification page opened in browser. Complete the payment there."
+        });
+      }
+
       return formatResponse(result);
     } catch (error) {
       return formatError(error);

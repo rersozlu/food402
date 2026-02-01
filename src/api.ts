@@ -1115,7 +1115,46 @@ export interface PlaceOrderResponse {
   orderId?: string;
   requires3DSecure?: boolean;  // If true, user must complete on website
   redirectUrl?: string;        // 3D Secure URL if needed
+  htmlContent?: string;        // 3D Secure HTML form if provided
   message: string;
+}
+
+export interface CustomerNoteRequest {
+  customerNote: string;
+  noServiceWare: boolean;      // "Servis İstemiyorum" toggle
+  contactlessDelivery: boolean; // "Temassız Teslimat" toggle
+  dontRingBell: boolean;        // "Zile Basma" toggle
+}
+
+export async function updateCustomerNote(request: CustomerNoteRequest): Promise<void> {
+  const token = await getToken();
+
+  const response = await fetch(
+    `${API_BASE}/web-checkout-apicheckout-santral/carts/customerNote`,
+    {
+      method: "PUT",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      },
+      body: JSON.stringify({
+        customerNote: request.customerNote,
+        noServiceWare: request.noServiceWare,
+        contactlessDelivery: request.contactlessDelivery,
+        dontRingBell: request.dontRingBell
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to update customer note: ${response.status} ${response.statusText}`);
+  }
 }
 
 export async function getSavedCards(): Promise<SavedCardsResponse> {
@@ -1313,6 +1352,8 @@ async function selectPaymentMethod(cardId: number, binCode: string): Promise<voi
       "x-applicationid": "1",
       "x-channelid": "4",
       "x-storefrontid": "1",
+      "x-features": "OPTIONAL_REBATE;MEAL_CART_ENABLED",
+      "x-supported-payment-options": "MULTINET;SODEXO;EDENRED;ON_DELIVERY;SETCARD",
       "x-correlationid": randomUUID(),
       "pid": randomUUID(),
       "sid": randomUUID()
@@ -1351,40 +1392,76 @@ export async function placeOrder(cardId: number): Promise<PlaceOrderResponse> {
   // Extract bin code from masked card number (first 6 digits + **)
   const binCode = card.maskedCardNumber.substring(0, 6) + "**";
 
-  // Select the payment method first
-  try {
-    await selectPaymentMethod(cardId, binCode);
-  } catch (error) {
+  // IMPORTANT: Use the same session IDs across all payment-related calls
+  // This is required for the payment system to track the transaction properly
+  const correlationId = randomUUID();
+  const pid = randomUUID();
+  const sid = randomUUID();
+
+  const paymentHeaders = {
+    "Accept": "application/json, text/plain, */*",
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "User-Agent": USER_AGENT,
+    "Origin": "https://tgoyemek.com",
+    "app-name": "TrendyolGo",
+    "x-applicationid": "1",
+    "x-channelid": "4",
+    "x-storefrontid": "1",
+    "x-features": "OPTIONAL_REBATE;MEAL_CART_ENABLED",
+    "x-supported-payment-options": "MULTINET;SODEXO;EDENRED;ON_DELIVERY;SETCARD",
+    "x-correlationid": correlationId,
+    "pid": pid,
+    "sid": sid
+  };
+
+  // Step 1: Initialize cart state in payment system
+  const checkoutResponse = await fetch(
+    `${API_BASE}/web-checkout-apicheckout-santral/carts?cartContext=payment&limitPromoMbs=false`,
+    { method: "GET", headers: paymentHeaders }
+  );
+
+  if (!checkoutResponse.ok) {
     return {
       success: false,
-      message: `Failed to select payment method: ${error instanceof Error ? error.message : String(error)}`
+      message: `Failed to initialize checkout: ${checkoutResponse.status} ${checkoutResponse.statusText}`
     };
   }
 
-  // Now place the order
+  // Step 2: Select payment method
+  const optionsResponse = await fetch(`${PAYMENT_API_BASE}/v3/payment/options`, {
+    method: "POST",
+    headers: paymentHeaders,
+    body: JSON.stringify({
+      paymentType: "payWithCard",
+      data: {
+        savedCardId: cardId,
+        binCode: binCode,
+        installmentId: 0,
+        reward: null,
+        installmentPostponingSelected: false
+      }
+    })
+  });
+
+  if (!optionsResponse.ok) {
+    return {
+      success: false,
+      message: `Failed to select payment method: ${optionsResponse.status} ${optionsResponse.statusText}`
+    };
+  }
+
+  // Step 3: Place the order with 3D Secure
   const response = await fetch(`${PAYMENT_API_BASE}/v2/payment/pay`, {
     method: "POST",
-    headers: {
-      "Accept": "application/json, text/plain, */*",
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": USER_AGENT,
-      "Origin": "https://tgoyemek.com",
-      "app-name": "TrendyolGo",
-      "x-applicationid": "1",
-      "x-channelid": "4",
-      "x-storefrontid": "1",
-      "x-correlationid": randomUUID(),
-      "pid": randomUUID(),
-      "sid": randomUUID()
-    },
+    headers: paymentHeaders,
     body: JSON.stringify({
-      customerSelectedThreeD: false,
+      customerSelectedThreeD: true,
       paymentOptions: [
         {
           name: "payWithCard",
           cardNo: "",
-          customerSelectedThreeD: false
+          customerSelectedThreeD: true
         }
       ],
       callbackUrl: "https://tgoyemek.com/odeme"
@@ -1394,16 +1471,17 @@ export async function placeOrder(cardId: number): Promise<PlaceOrderResponse> {
   if (!response.ok) {
     const errorText = await response.text();
 
-    // Check for 3D Secure requirement
+    // Check for 3D Secure requirement in error response
     if (response.status === 400 || response.status === 403) {
       try {
         const errorData = JSON.parse(errorText);
-        if (errorData.redirectUrl || errorData.requires3DSecure || errorData.threeDSecureUrl) {
+        if (errorData.redirectUrl || errorData.requires3DSecure || errorData.threeDSecureUrl || errorData.htmlContent || errorData.json?.content) {
           return {
             success: false,
             requires3DSecure: true,
             redirectUrl: errorData.redirectUrl || errorData.threeDSecureUrl,
-            message: "3D Secure verification required. Please complete the payment at tgoyemek.com"
+            htmlContent: errorData.htmlContent || errorData.json?.content,
+            message: "3D Secure verification required. Complete payment in browser."
           };
         }
       } catch {
@@ -1416,13 +1494,29 @@ export async function placeOrder(cardId: number): Promise<PlaceOrderResponse> {
 
   const data = await response.json();
 
-  // Check if 3D Secure is required in response
-  if (data.requires3DSecure || data.redirectUrl || data.threeDSecureUrl) {
+  // Check if 3D Secure HTML content is returned (successful 3D Secure initiation)
+  if (data.json?.content) {
+    // Extract redirect URL from HTML form if present
+    const formMatch = data.json.content.match(/action="([^"]+)"/);
+    const redirectUrl = formMatch ? formMatch[1] : undefined;
+
+    return {
+      success: false,
+      requires3DSecure: true,
+      redirectUrl,
+      htmlContent: data.json.content,
+      message: "3D Secure verification required. Complete payment in browser."
+    };
+  }
+
+  // Check other 3D Secure indicators
+  if (data.requires3DSecure || data.redirectUrl || data.threeDSecureUrl || data.htmlContent) {
     return {
       success: false,
       requires3DSecure: true,
       redirectUrl: data.redirectUrl || data.threeDSecureUrl,
-      message: "3D Secure verification required. Please complete the payment at tgoyemek.com"
+      htmlContent: data.htmlContent,
+      message: "3D Secure verification required. Complete payment in browser."
     };
   }
 
