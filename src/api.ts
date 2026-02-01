@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 const API_BASE = "https://api.tgoapis.com";
+const PAYMENT_API_BASE = "https://payment.tgoapps.com";
 
 export interface Address {
   id: number;
@@ -488,6 +489,39 @@ export interface AddToBasketResponse {
   deliveryPrice: number;
 }
 
+export interface SetShippingAddressRequest {
+  shippingAddressId: number;
+  invoiceAddressId: number;
+}
+
+export async function setShippingAddress(
+  request: SetShippingAddressRequest
+): Promise<void> {
+  const token = await getToken();
+
+  const response = await fetch(
+    `${API_BASE}/web-checkout-apicheckout-santral/shipping`,
+    {
+      method: "POST",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      },
+      body: JSON.stringify(request)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to set shipping address: ${response.status} ${response.statusText}`);
+  }
+}
+
 export async function addToBasket(
   request: AddToBasketRequest
 ): Promise<AddToBasketResponse> {
@@ -507,7 +541,14 @@ export async function addToBasket(
         "pid": randomUUID(),
         "sid": randomUUID()
       },
-      body: JSON.stringify(request)
+      body: JSON.stringify({
+        storeId: request.storeId,
+        items: request.items,
+        isFlashSale: false,      // Always false
+        storePickup: false,      // Always false (delivery mode)
+        latitude: request.latitude,
+        longitude: request.longitude
+      })
     }
   );
 
@@ -1038,6 +1079,610 @@ export async function addAddress(request: AddAddressRequest): Promise<AddAddress
     success: true,
     address,
     message: "Address added successfully"
+  };
+}
+
+// Saved Card interfaces
+export interface SavedCard {
+  cardId: number;
+  name: string;                    // Card nickname
+  maskedCardNumber: string;        // e.g., "554960******0023"
+  cardTypeName: string;            // e.g., "BONUS"
+  bankName: string;                // e.g., "Garanti BBVA"
+  isDebitCard: boolean;
+  cvvRequired: boolean;
+  cardNetwork: string;             // e.g., "Mastercard"
+}
+
+export interface SavedCardsResponse {
+  cards: SavedCard[];
+  hasCards: boolean;
+  message?: string;                // Guidance message if no cards
+}
+
+export interface CheckoutReadyResponse {
+  ready: boolean;
+  store: CartStore;
+  products: CartProductDetails[];
+  summary: CartSummaryLine[];
+  totalPrice: number;
+  deliveryPrice: number;
+  warnings: string[];
+}
+
+export interface PlaceOrderResponse {
+  success: boolean;
+  orderId?: string;
+  requires3DSecure?: boolean;  // If true, user must complete on website
+  redirectUrl?: string;        // 3D Secure URL if needed
+  message: string;
+}
+
+export async function getSavedCards(): Promise<SavedCardsResponse> {
+  const token = await getToken();
+
+  const response = await fetch(`${PAYMENT_API_BASE}/v2/cards/`, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json, text/plain, */*",
+      "Authorization": `Bearer ${token}`,
+      "User-Agent": USER_AGENT,
+      "Origin": "https://tgoyemek.com",
+      "app-name": "TrendyolGo",
+      "x-applicationid": "1",
+      "x-channelid": "4",
+      "x-storefrontid": "1",
+      "x-features": "OPTIONAL_REBATE;MEAL_CART_ENABLED",
+      "x-supported-payment-options": "MULTINET;SODEXO;EDENRED;ON_DELIVERY;SETCARD",
+      "x-correlationid": randomUUID(),
+      "pid": randomUUID(),
+      "sid": randomUUID()
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch saved cards: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const cardsData = data.json?.cards || data.cards || [];
+
+  const cards: SavedCard[] = cardsData.map((c: any) => ({
+    cardId: c.cardId,
+    name: c.name ?? "",
+    maskedCardNumber: c.maskedCardNumber ?? "",
+    cardTypeName: c.cardTypeName ?? "",
+    bankName: c.bankName ?? "",
+    isDebitCard: c.isDebitCard ?? false,
+    cvvRequired: c.cvvRequired ?? false,
+    cardNetwork: c.cardNetwork ?? ""
+  }));
+
+  if (cards.length === 0) {
+    return {
+      cards: [],
+      hasCards: false,
+      message: "No saved cards. Please add a payment method at tgoyemek.com"
+    };
+  }
+
+  return {
+    cards,
+    hasCards: true
+  };
+}
+
+export async function getCheckoutReady(): Promise<CheckoutReadyResponse> {
+  const token = await getToken();
+
+  const response = await fetch(
+    `${API_BASE}/web-checkout-apicheckout-santral/carts?cartContext=payment&limitPromoMbs=false`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  // Handle 400 error (typically means empty cart)
+  if (response.status === 400) {
+    return {
+      ready: false,
+      store: {
+        id: 0,
+        name: "",
+        imageUrl: "",
+        rating: 0,
+        averageDeliveryInterval: "",
+        minAmount: 0
+      },
+      products: [],
+      summary: [],
+      totalPrice: 0,
+      deliveryPrice: 0,
+      warnings: ["Cart is empty. Add items before checkout."]
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to get checkout ready: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Extract warnings from response
+  const warnings: string[] = [];
+  if (data.warnings) {
+    warnings.push(...data.warnings.map((w: any) => w.message || String(w)));
+  }
+
+  // Check if cart is empty
+  if ((data.totalProductCount ?? 0) === 0) {
+    return {
+      ready: false,
+      store: {
+        id: 0,
+        name: "",
+        imageUrl: "",
+        rating: 0,
+        averageDeliveryInterval: "",
+        minAmount: 0
+      },
+      products: [],
+      summary: [],
+      totalPrice: 0,
+      deliveryPrice: 0,
+      warnings: ["Cart is empty. Add items before checkout."]
+    };
+  }
+
+  // Extract store and products from first group
+  const group = data.groupedProducts?.[0];
+  const store: CartStore = {
+    id: group?.store?.id ?? 0,
+    name: group?.store?.name ?? "",
+    imageUrl: group?.store?.imageUrl ?? "",
+    rating: group?.store?.rating ?? 0,
+    averageDeliveryInterval: group?.store?.averageDeliveryInterval ?? "",
+    minAmount: group?.store?.minAmount ?? 0
+  };
+
+  const products: CartProductDetails[] = (group?.products || []).map((p: any) => ({
+    productId: p.productId,
+    itemId: p.itemId,
+    name: p.name,
+    quantity: p.quantity,
+    salePrice: p.salePrice,
+    description: p.description ?? "",
+    marketPrice: p.marketPrice ?? 0,
+    modifierProducts: (p.modifierProducts || []).map((m: any) => ({
+      productId: m.productId,
+      modifierGroupId: m.modifierGroupId,
+      name: m.name,
+      price: m.price
+    })),
+    ingredientExcludes: (p.ingredientOption?.excludes || []).map((e: any) => ({
+      id: e.id,
+      name: e.name
+    }))
+  }));
+
+  const summary: CartSummaryLine[] = (data.summary || []).map((s: any) => ({
+    title: s.title,
+    amount: s.amount,
+    isPromotion: s.isPromotion ?? false
+  }));
+
+  // Check minimum order amount
+  const minAmount = store.minAmount || 0;
+  const totalPrice = data.totalPrice ?? 0;
+  if (minAmount > 0 && totalPrice < minAmount) {
+    warnings.push(`Minimum order amount is ${minAmount} TL. Current total: ${totalPrice} TL`);
+  }
+
+  return {
+    ready: warnings.length === 0,
+    store,
+    products,
+    summary,
+    totalPrice: data.totalPrice ?? 0,
+    deliveryPrice: data.deliveryPrice ?? 0,
+    warnings
+  };
+}
+
+async function selectPaymentMethod(cardId: number, binCode: string): Promise<void> {
+  const token = await getToken();
+
+  const response = await fetch(`${PAYMENT_API_BASE}/v3/payment/options`, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json, text/plain, */*",
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": USER_AGENT,
+      "Origin": "https://tgoyemek.com",
+      "app-name": "TrendyolGo",
+      "x-applicationid": "1",
+      "x-channelid": "4",
+      "x-storefrontid": "1",
+      "x-correlationid": randomUUID(),
+      "pid": randomUUID(),
+      "sid": randomUUID()
+    },
+    body: JSON.stringify({
+      paymentType: "payWithCard",
+      data: {
+        savedCardId: cardId,
+        binCode: binCode,
+        installmentId: 0,
+        reward: null,
+        installmentPostponingSelected: false
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to select payment method: ${response.status} ${response.statusText}`);
+  }
+}
+
+export async function placeOrder(cardId: number): Promise<PlaceOrderResponse> {
+  const token = await getToken();
+
+  // First, get the saved cards to find the bin code for this card
+  const cardsResponse = await getSavedCards();
+  const card = cardsResponse.cards.find(c => c.cardId === cardId);
+
+  if (!card) {
+    return {
+      success: false,
+      message: `Card with ID ${cardId} not found. Use get_saved_cards to see available cards.`
+    };
+  }
+
+  // Extract bin code from masked card number (first 6 digits + **)
+  const binCode = card.maskedCardNumber.substring(0, 6) + "**";
+
+  // Select the payment method first
+  try {
+    await selectPaymentMethod(cardId, binCode);
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to select payment method: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+
+  // Now place the order
+  const response = await fetch(`${PAYMENT_API_BASE}/v2/payment/pay`, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json, text/plain, */*",
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": USER_AGENT,
+      "Origin": "https://tgoyemek.com",
+      "app-name": "TrendyolGo",
+      "x-applicationid": "1",
+      "x-channelid": "4",
+      "x-storefrontid": "1",
+      "x-correlationid": randomUUID(),
+      "pid": randomUUID(),
+      "sid": randomUUID()
+    },
+    body: JSON.stringify({
+      customerSelectedThreeD: false,
+      paymentOptions: [
+        {
+          name: "payWithCard",
+          cardNo: "",
+          customerSelectedThreeD: false
+        }
+      ],
+      callbackUrl: "https://tgoyemek.com/odeme"
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    // Check for 3D Secure requirement
+    if (response.status === 400 || response.status === 403) {
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.redirectUrl || errorData.requires3DSecure || errorData.threeDSecureUrl) {
+          return {
+            success: false,
+            requires3DSecure: true,
+            redirectUrl: errorData.redirectUrl || errorData.threeDSecureUrl,
+            message: "3D Secure verification required. Please complete the payment at tgoyemek.com"
+          };
+        }
+      } catch {
+        // Not JSON, continue with generic error
+      }
+    }
+
+    throw new Error(`Failed to place order: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Check if 3D Secure is required in response
+  if (data.requires3DSecure || data.redirectUrl || data.threeDSecureUrl) {
+    return {
+      success: false,
+      requires3DSecure: true,
+      redirectUrl: data.redirectUrl || data.threeDSecureUrl,
+      message: "3D Secure verification required. Please complete the payment at tgoyemek.com"
+    };
+  }
+
+  return {
+    success: true,
+    orderId: data.orderId || data.orderNumber || data.id,
+    message: "Order placed successfully!"
+  };
+}
+
+// Order interfaces
+export interface OrderStatus {
+  status: string;           // "CREATED" | "PREPARING" | "SHIPPED" | "DELIVERED" | "CANCELLED"
+  statusText: string;       // e.g., "Sipariş Hazırlanıyor"
+  statusColor: string;      // e.g., "#FFB600"
+}
+
+export interface OrderStore {
+  id: number;
+  name: string;
+}
+
+export interface OrderPrice {
+  totalPrice: number;
+  totalPriceText: string;
+  refundedPrice: number;
+  cancelledPrice: number;
+  totalDeliveryPrice: number;
+  totalServicePrice: number;
+}
+
+export interface OrderProductSummary {
+  productId: number;
+  name: string;
+  imageUrl: string;
+}
+
+export interface Order {
+  id: string;
+  orderDate: string;
+  store: OrderStore;
+  status: OrderStatus;
+  price: OrderPrice;
+  productSummary: string;      // Combined product names
+  products: OrderProductSummary[];
+  isReady: boolean;
+}
+
+export interface OrdersResponse {
+  orders: Order[];
+  pagination: {
+    currentPage: number;
+    pageSize: number;
+    totalCount: number;
+    hasNext: boolean;
+  };
+}
+
+export interface OrderDetailProduct {
+  name: string;
+  imageUrl: string;
+  salePrice: number;
+  salePriceText: string;
+  quantity: number;
+  description: string;
+}
+
+export interface OrderStatusStep {
+  status: string;
+  statusText: string;
+}
+
+export interface OrderShipmentItem {
+  status: OrderStatus;
+  statusSteps: OrderStatusStep[];  // Progress: CREATED → PREPARING → SHIPPED → DELIVERED
+  products: OrderDetailProduct[];
+}
+
+export interface OrderDetail {
+  orderId: string;
+  orderNumber: string;
+  orderDate: string;
+  customerNote: string;
+  store: OrderStore;
+  eta: string;                     // e.g., "20 - 30 dk"
+  deliveredDate: string;
+  status: OrderStatus;
+  statusSteps: OrderStatusStep[];
+  products: OrderDetailProduct[];
+  price: OrderPrice;
+  paymentDescription: string;      // e.g., "**** ****** 0023 - Tek Çekim"
+  deliveryAddress: {
+    name: string;
+    address: string;
+    districtCity: string;
+    phoneNumber: string;
+  };
+}
+
+export async function getOrders(page: number = 1): Promise<OrdersResponse> {
+  const token = await getToken();
+  const pageSize = 50;
+
+  const params = new URLSearchParams({
+    page: page.toString(),
+    pageSize: pageSize.toString()
+  });
+
+  const response = await fetch(
+    `${API_BASE}/web-checkout-apicheckout-santral/orders?${params}`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Transform orders to simplified format
+  const orders: Order[] = (data.orders || []).map((o: any) => ({
+    id: o.id,
+    orderDate: o.orderDate ?? "",
+    store: {
+      id: o.store?.id ?? 0,
+      name: o.store?.name ?? ""
+    },
+    status: {
+      status: o.status?.status ?? "",
+      statusText: o.status?.statusText ?? "",
+      statusColor: o.status?.statusColor ?? ""
+    },
+    price: {
+      totalPrice: o.price?.totalPrice ?? 0,
+      totalPriceText: o.price?.totalPriceText ?? "",
+      refundedPrice: o.price?.refundedPrice ?? 0,
+      cancelledPrice: o.price?.cancelledPrice ?? 0,
+      totalDeliveryPrice: o.price?.totalDeliveryPrice ?? 0,
+      totalServicePrice: o.price?.totalServicePrice ?? 0
+    },
+    productSummary: o.product?.name ?? "",
+    products: (o.productList || []).map((p: any) => ({
+      productId: p.productId,
+      name: p.name,
+      imageUrl: p.imageUrl ?? ""
+    })),
+    isReady: o.isReady ?? false
+  }));
+
+  return {
+    orders,
+    pagination: {
+      currentPage: data.pagination?.currentPage ?? page,
+      pageSize: data.pagination?.pageSize ?? pageSize,
+      totalCount: data.pagination?.totalCount ?? 0,
+      hasNext: data.pagination?.hasNext ?? false
+    }
+  };
+}
+
+export async function getOrderDetail(orderId: string): Promise<OrderDetail> {
+  const token = await getToken();
+
+  const params = new URLSearchParams({
+    orderId
+  });
+
+  const response = await fetch(
+    `${API_BASE}/web-checkout-apicheckout-santral/orders/detail?${params}`,
+    {
+      method: "GET",
+      headers: {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": `Bearer ${token}`,
+        "User-Agent": USER_AGENT,
+        "Origin": "https://tgoyemek.com",
+        "x-correlationid": randomUUID(),
+        "pid": randomUUID(),
+        "sid": randomUUID()
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch order detail: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Extract shipment info
+  const shipment = data.shipment;
+  const shipmentSummary = shipment?.summary;
+  const shipmentItem = shipment?.items?.[0];
+
+  // Extract status steps from shipment item state
+  const statusSteps: OrderStatusStep[] = (shipmentItem?.state?.statuses || []).map((s: any) => ({
+    status: s.status ?? "",
+    statusText: s.statusText ?? ""
+  }));
+
+  // Extract products from shipment item
+  const products: OrderDetailProduct[] = (shipmentItem?.products || []).map((p: any) => ({
+    name: p.name ?? "",
+    imageUrl: p.imageUrl ?? "",
+    salePrice: p.salePrice ?? 0,
+    salePriceText: p.salePriceText ?? "",
+    quantity: p.quantity ?? 1,
+    description: p.description ?? ""
+  }));
+
+  // Extract delivery address
+  const addr = data.deliveryAddress;
+
+  // Extract price from summary
+  const summaryPrice = data.summary?.price;
+
+  return {
+    orderId: data.summary?.orderId ?? orderId,
+    orderNumber: data.summary?.orderNumber ?? "",
+    orderDate: data.summary?.orderDate ?? "",
+    customerNote: data.summary?.customerNote ?? "",
+    store: {
+      id: parseInt(shipmentSummary?.store?.id, 10) || 0,
+      name: shipmentSummary?.store?.name ?? ""
+    },
+    eta: shipmentSummary?.eta ?? "",
+    deliveredDate: shipmentSummary?.deliveredDate ?? "",
+    status: {
+      status: shipmentItem?.status?.status ?? "",
+      statusText: shipmentItem?.status?.statusText ?? "",
+      statusColor: shipmentItem?.status?.statusColor ?? ""
+    },
+    statusSteps,
+    products,
+    price: {
+      totalPrice: summaryPrice?.totalPrice ?? 0,
+      totalPriceText: summaryPrice?.totalPriceText ?? "",
+      refundedPrice: summaryPrice?.refundedPrice ?? 0,
+      cancelledPrice: summaryPrice?.cancelledPrice ?? 0,
+      totalDeliveryPrice: summaryPrice?.totalDeliveryPrice ?? 0,
+      totalServicePrice: summaryPrice?.totalServicePrice ?? 0
+    },
+    paymentDescription: data.paymentInfo?.paymentDescription ?? "",
+    deliveryAddress: {
+      name: addr?.name ?? "",
+      address: addr?.address ?? "",
+      districtCity: addr?.districtCity ?? "",
+      phoneNumber: addr?.phoneNumber ?? ""
+    }
   };
 }
 

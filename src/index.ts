@@ -11,6 +11,7 @@ import {
   getRestaurantMenu,
   getProductDetails,
   getProductRecommendations,
+  setShippingAddress,
   addToBasket,
   getBasket,
   removeFromBasket,
@@ -20,6 +21,11 @@ import {
   getDistricts,
   getNeighborhoods,
   addAddress,
+  getSavedCards,
+  getCheckoutReady,
+  placeOrder,
+  getOrders,
+  getOrderDetail,
   type BasketItem,
 } from "./api.js";
 
@@ -57,7 +63,7 @@ function formatError(error: unknown) {
 // Tool: get_addresses
 server.tool(
   "get_addresses",
-  "Get user's saved delivery addresses",
+  "Get user's saved delivery addresses. User must select an address with select_address before browsing restaurants.",
   {},
   async () => {
     try {
@@ -69,13 +75,60 @@ server.tool(
   }
 );
 
+// Tool: select_address
+server.tool(
+  "select_address",
+  "Select a delivery address. MUST be called before get_restaurants or add_to_basket. Sets the shipping address for the cart.",
+  {
+    addressId: z.number().describe("Address ID from get_addresses"),
+  },
+  async (args) => {
+    try {
+      // Set shipping address for cart
+      await setShippingAddress({
+        shippingAddressId: args.addressId,
+        invoiceAddressId: args.addressId,
+      });
+
+      // Get address details to return to user
+      const addressesResult = await getAddresses();
+      const selectedAddress = addressesResult.addresses.find(a => a.id === args.addressId);
+
+      if (!selectedAddress) {
+        return formatResponse({
+          success: true,
+          message: "Shipping address set successfully",
+          addressId: args.addressId
+        });
+      }
+
+      return formatResponse({
+        success: true,
+        message: "Delivery address selected",
+        address: {
+          id: selectedAddress.id,
+          name: selectedAddress.addressName,
+          addressLine: selectedAddress.addressLine,
+          neighborhood: selectedAddress.neighborhoodName,
+          district: selectedAddress.districtName,
+          city: selectedAddress.cityName,
+          latitude: selectedAddress.latitude,
+          longitude: selectedAddress.longitude
+        }
+      });
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
 // Tool: get_restaurants
 server.tool(
   "get_restaurants",
-  "Search restaurants near a location",
+  "Search restaurants near a location. Requires select_address to be called first.",
   {
-    latitude: z.string().describe("Latitude coordinate"),
-    longitude: z.string().describe("Longitude coordinate"),
+    latitude: z.string().describe("Latitude coordinate from selected address"),
+    longitude: z.string().describe("Longitude coordinate from selected address"),
     page: z.number().optional().describe("Page number for pagination (default: 1)"),
   },
   async (args) => {
@@ -166,14 +219,12 @@ const BasketItemSchema = z.object({
 // Tool: add_to_basket
 server.tool(
   "add_to_basket",
-  "Add items to the shopping cart",
+  "Add items to the shopping cart. Requires select_address to be called first.",
   {
     storeId: z.number().describe("Restaurant ID"),
     items: z.array(BasketItemSchema).describe("Items to add to basket"),
     latitude: z.number().describe("Latitude coordinate (number)"),
     longitude: z.number().describe("Longitude coordinate (number)"),
-    isFlashSale: z.boolean().optional().describe("Enable flash sale discounts (default: false)"),
-    storePickup: z.boolean().optional().describe("false = delivery, true = pickup (default: false)"),
   },
   async (args) => {
     try {
@@ -198,8 +249,8 @@ server.tool(
         items,
         latitude: args.latitude,
         longitude: args.longitude,
-        isFlashSale: args.isFlashSale ?? false,
-        storePickup: args.storePickup ?? false,
+        isFlashSale: false,
+        storePickup: false,
       });
       return formatResponse(result);
     } catch (error) {
@@ -359,6 +410,87 @@ server.tool(
         addressDescription: args.addressDescription,
         elevatorAvailable: args.elevatorAvailable,
       });
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_saved_cards
+server.tool(
+  "get_saved_cards",
+  "Get user's saved payment cards (masked). If no cards, user must add one on the website.",
+  {},
+  async () => {
+    try {
+      const result = await getSavedCards();
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: checkout_ready
+server.tool(
+  "checkout_ready",
+  "Get basket ready for checkout with payment context. Call this before placing an order.",
+  {},
+  async () => {
+    try {
+      const result = await getCheckoutReady();
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: place_order
+server.tool(
+  "place_order",
+  "Place the order using a saved card. Requires items in basket and a valid card.",
+  {
+    cardId: z.number().describe("Card ID from get_saved_cards"),
+  },
+  async (args) => {
+    try {
+      const result = await placeOrder(args.cardId);
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_orders
+server.tool(
+  "get_orders",
+  "Get user's order history with status",
+  {
+    page: z.number().optional().describe("Page number (default: 1)"),
+  },
+  async (args) => {
+    try {
+      const result = await getOrders(args.page ?? 1);
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_order_detail
+server.tool(
+  "get_order_detail",
+  "Get detailed information about a specific order including delivery status",
+  {
+    orderId: z.string().describe("Order ID from get_orders"),
+  },
+  async (args) => {
+    try {
+      const result = await getOrderDetail(args.orderId);
       return formatResponse(result);
     } catch (error) {
       return formatError(error);
