@@ -73,7 +73,7 @@ For Claude.ai web access, use the remote MCP server deployed on Cloudflare Worke
 
 1. Go to Claude.ai **Settings > Connectors**
 2. Click **"Add Custom Connector"**
-3. Enter the remote server URL
+3. Enter the server URL: `https://food402-remote.food402.workers.dev`
 4. Complete the OAuth flow by logging in with your TGO Yemek credentials
 
 No local setup required—your credentials are securely stored via OAuth.
