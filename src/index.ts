@@ -34,6 +34,45 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
+// Prompt: order_food - Main entry point for food ordering
+server.prompt(
+  "order_food",
+  "Start a food ordering session. Always begin by asking user to select a delivery address.",
+  async () => {
+    // Fetch addresses to include in the prompt
+    try {
+      const addressesResult = await getAddresses();
+      const addressList = addressesResult.addresses
+        .map((a, i) => `${i + 1}. ${a.addressName} - ${a.addressLine}, ${a.neighborhoodName}, ${a.districtName} (ID: ${a.id})`)
+        .join("\n");
+
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `I want to order food. Here are my saved addresses:\n\n${addressList}\n\nWhich address should I deliver to?`
+            }
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: "I want to order food. Please fetch my addresses first using get_addresses and ask me which one to use for delivery."
+            }
+          }
+        ]
+      };
+    }
+  }
+);
+
 // Helper to format successful responses
 function formatResponse(data: unknown) {
   return {
