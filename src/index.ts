@@ -58,7 +58,7 @@ server.registerPrompt(
               type: "text" as const,
               text: `[Food Ordering Assistant - Trendyol GO]
 
-This MCP enables food ordering ONLY through Trendyol GO (TGO Yemek), a Turkish food delivery service. Do NOT suggest other platforms like Yemeksepeti, Getir, or any other delivery app - this tool only works with Trendyol GO.
+This MCP enables food ordering ONLY through Trendyol GO (TGO Yemek), a Turkish food delivery service. Do NOT suggest other food delivery platforms - this tool only works with Trendyol GO.
 
 WORKFLOW:
 1. select_address - REQUIRED first step (sets delivery location)
@@ -281,16 +281,46 @@ server.registerTool(
   "get_restaurants",
   {
     title: "Get Restaurants",
-    description: "Search restaurants near a location. Requires select_address to be called first.",
+    description: `List restaurants near a location. Requires select_address first.
+
+Each restaurant includes: rating, distance, minBasketPrice, averageDeliveryInterval.
+
+SORTING OPTIONS:
+- "RECOMMENDED" (default): TGO Yemek's recommended/sponsored restaurants
+- "RESTAURANT_SCORE": Best rated first
+- "RESTAURANT_DISTANCE": Closest first
+
+FILTERING:
+- minBasketPrice: Optional. Only show restaurants with minimum order >= this value (in TL)
+
+Note: Delivery fee sorting is not supported. For price-related queries ("en ucuz"), use search_restaurants instead which returns product prices.
+
+KEYWORD → SORT MAPPING (Turkish & English):
+- "önerilen" / "recommended" / "popüler" → RECOMMENDED
+- "en yakın" / "closest" / "yakın" / "yakınımdaki" → RESTAURANT_DISTANCE
+- "en iyi" / "best" / "best rated" / "en çok beğenilen" / "en yüksek puanlı" → RESTAURANT_SCORE
+- "en ucuz" / "cheapest" / "ucuz" / "uygun fiyatlı" → use search_restaurants tool instead
+
+When presenting results, highlight the relevant metric (e.g. show distance when sorted by RESTAURANT_DISTANCE).`,
     inputSchema: {
       latitude: z.string().describe("Latitude coordinate from selected address"),
       longitude: z.string().describe("Longitude coordinate from selected address"),
       page: z.number().optional().describe("Page number for pagination (default: 1)"),
+      sortBy: z.enum(["RECOMMENDED", "RESTAURANT_SCORE", "RESTAURANT_DISTANCE"])
+        .optional()
+        .describe("Sort order: RECOMMENDED (default, TGO's picks), RESTAURANT_SCORE (best rated), RESTAURANT_DISTANCE (closest)"),
+      minBasketPrice: z.number().optional().describe("Filter: only show restaurants with minimum order >= this value in TL"),
     },
   },
   async (args) => {
     try {
-      const result = await getRestaurants(args.latitude, args.longitude, args.page ?? 1);
+      const result = await getRestaurants(
+        args.latitude,
+        args.longitude,
+        args.page ?? 1,
+        args.sortBy ?? "RECOMMENDED",
+        args.minBasketPrice
+      );
       return formatResponse(result);
     } catch (error) {
       return formatError(error);

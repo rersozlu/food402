@@ -69,10 +69,12 @@ export async function getAddresses() {
 export async function getRestaurants(
   latitude: string,
   longitude: string,
-  page: number = 1
+  page: number = 1,
+  sortType: sharedApi.RestaurantSortType = "RECOMMENDED",
+  minBasketPrice?: number
 ) {
   const token = await getToken();
-  return sharedApi.getRestaurants(token, latitude, longitude, page);
+  return sharedApi.getRestaurants(token, latitude, longitude, page, sortType, minBasketPrice);
 }
 
 export async function getRestaurantMenu(
