@@ -667,6 +667,84 @@ export function createMcpServer(context: ServerContext): McpServer {
     }
   );
 
+  // Prompt: select_payment - List saved payment cards for checkout
+  server.registerPrompt(
+    "select_payment",
+    {
+      title: "Select Payment",
+      description: "List saved payment cards and select one for checkout. Call this before place_order.",
+    },
+    async () => {
+      try {
+        const token = await getToken();
+        const cardsResult = await api.getSavedCards(token);
+
+        if (!cardsResult.hasCards || cardsResult.cards.length === 0) {
+          return {
+            messages: [
+              {
+                role: "user" as const,
+                content: {
+                  type: "text" as const,
+                  text: `[Payment Selection - Trendyol GO]
+
+You don't have any saved payment cards.
+
+To add a payment card, please visit tgoyemek.com and add a card in the Payment Methods section of your account settings.
+
+Once you've added a card, come back and run this prompt again.`,
+                },
+              },
+            ],
+          };
+        }
+
+        const cardList = cardsResult.cards
+          .map((c, i) => {
+            const cardType = c.isDebitCard ? "DEBIT" : "CREDIT";
+            return `${i + 1}. ${c.cardNetwork || c.cardTypeName} - ${c.maskedCardNumber} (${c.bankName}, ${cardType}) [ID: ${c.cardId}]`;
+          })
+          .join("\n");
+
+        return {
+          messages: [
+            {
+              role: "user" as const,
+              content: {
+                type: "text" as const,
+                text: `[Payment Selection - Trendyol GO]
+
+Your saved payment cards:
+
+${cardList}
+
+To complete your order, call place_order with your chosen card ID.
+Example: place_order({ cardId: ${cardsResult.cards[0].cardId} })`,
+              },
+            },
+          ],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          messages: [
+            {
+              role: "user" as const,
+              content: {
+                type: "text" as const,
+                text: `[Payment Selection - Trendyol GO]
+
+Failed to fetch payment cards: ${message}
+
+Please try again or use get_saved_cards to manually retrieve your cards.`,
+              },
+            },
+          ],
+        };
+      }
+    }
+  );
+
   // Prompt: order_food
   server.registerPrompt(
     "order_food",
