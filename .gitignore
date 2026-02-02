@@ -8,4 +8,5 @@
 /temp
 /cache
 /example_requests
+.codex/
 CLAUDE.md

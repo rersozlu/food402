@@ -46,7 +46,7 @@ For project-specific installation with Claude Code:
 npm install food402
 ```
 
-This automatically adds `food402` to your `.mcp.json` and creates/updates `.codex/config.toml` for Codex CLI. Open the file(s) and update your credentials:
+This automatically adds `food402` to your `.mcp.json`. Open the file and update your credentials:
 
 ```json
 {
@@ -88,27 +88,27 @@ ChatGPT apps in Developer Mode can connect to local MCP servers over stdio. Use 
 
 ### Codex CLI (Terminal)
 
-Codex supports MCP servers over stdio and uses TOML config files (not `.mcp.json`). You can add servers via the CLI (global) or a project-scoped `.codex/config.toml` (trusted projects).
+Codex reads MCP servers from your global config at `~/.codex/config.toml`.
 
-**Option A: CLI (global config: `~/.codex/config.toml`)**
+**Option A: Via CLI**
 
 ```bash
 codex mcp add food402 --env TGO_EMAIL=your-email@example.com --env TGO_PASSWORD=your-password -- npx -y food402
 ```
 
-**Option B: Project config (`.codex/config.toml`)**
+**Option B: Manual config**
+
+Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.food402]
-command = "node"
-args = ["./node_modules/food402/dist/src/index.js"]
+command = "npx"
+args = ["-y", "food402"]
 
 [mcp_servers.food402.env]
 TGO_EMAIL = "your-email@example.com"
 TGO_PASSWORD = "your-password"
 ```
-
-> **Tip:** Installing via `npm install food402` will create or update `.codex/config.toml` in the project root and add the `food402` entry automatically.
 
 ---
 
