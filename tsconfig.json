@@ -15,5 +15,5 @@
     }
   },
   "include": ["src/**/*", "shared/**/*"],
-  "exclude": ["node_modules", "dist", "remote"]
+  "exclude": ["node_modules", "dist"]
 }
