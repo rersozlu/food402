@@ -118,38 +118,23 @@ export async function getAddresses(token: string): Promise<AddressesResponse> {
   return response.json();
 }
 
-export type RestaurantSortType =
-  | "RECOMMENDED"
-  | "RESTAURANT_SCORE"
-  | "RESTAURANT_DISTANCE";
-
 export async function getRestaurants(
   token: string,
   latitude: string,
   longitude: string,
-  page: number = 1,
-  sortType: RestaurantSortType = "RECOMMENDED",
-  minBasketPrice?: number
+  page: number = 1
 ): Promise<RestaurantsResponse> {
   const pageSize = 50;
 
   const params = new URLSearchParams({
+    sortType: "RESTAURANT_SCORE",
+    minBasketPrice: "400",
     openRestaurants: "true",
     latitude,
     longitude,
     pageSize: pageSize.toString(),
     page: page.toString(),
   });
-
-  // Only pass sortType if not RECOMMENDED (no param = TGO's recommended/sponsored restaurants)
-  if (sortType !== "RECOMMENDED") {
-    params.set("sortType", sortType);
-  }
-
-  // Only pass minBasketPrice if specified
-  if (minBasketPrice !== undefined) {
-    params.set("minBasketPrice", minBasketPrice.toString());
-  }
 
   const response = await fetch(
     `${API_BASE}/web-discovery-apidiscovery-santral/restaurants/filters?${params}`,
