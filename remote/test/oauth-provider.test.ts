@@ -6,6 +6,8 @@ import { createOAuthRoutes, getSessionFromRequest } from "../src/auth/oauth-prov
 import { SessionStore } from "../src/session/store.js";
 import type { Env, OAuthAuthorizationCode, OAuthClient, UserSession } from "../src/session/types.js";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 class MemoryKV {
   data = new Map<string, string>();
 
@@ -188,6 +190,93 @@ test("getSessionFromRequest rejects legacy JWTs without cid", async () => {
 
   const session = await getSessionFromRequest(`Bearer ${jwt}`, env);
   assert.equal(session, null);
+});
+
+test("getSessionFromRequest uses sca to prevent session expiry drift", async () => {
+  const env = makeEnv();
+  const secret = new TextEncoder().encode(env.JWT_SECRET);
+  const now = Date.now();
+  const createdAt = now - 20 * DAY_MS;
+  const scaSeconds = Math.floor(createdAt / 1000);
+  const iatSeconds = Math.floor(now / 1000);
+
+  const jwt = await new SignJWT({
+    sub: "user-drift",
+    sid: "session-drift",
+    aud: "http://localhost",
+    iss: "http://localhost",
+    cid: "client-drift",
+    sca: scaSeconds,
+    email_enc: "enc-email",
+    email_iv: "iv-email",
+    pwd_enc: "enc-pass",
+    pwd_iv: "iv-pass",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(iatSeconds)
+    .setExpirationTime(iatSeconds + 3600)
+    .sign(secret);
+
+  const session = await getSessionFromRequest(`Bearer ${jwt}`, env);
+  assert.ok(session);
+  assert.equal(session?.createdAt, scaSeconds * 1000);
+  assert.equal(session?.sessionExpiresAt, scaSeconds * 1000 + 30 * DAY_MS);
+  assert.ok(session?.sessionExpiresAt && session.sessionExpiresAt < iatSeconds * 1000 + 30 * DAY_MS);
+});
+
+test("getSessionFromRequest rejects cid mismatch when KV session exists", async () => {
+  const env = makeEnv();
+  const store = new SessionStore(env);
+  const secret = new TextEncoder().encode(env.JWT_SECRET);
+
+  const session = await seedSession(store, {
+    id: "session-cid",
+    userId: "user-cid",
+    clientId: "client-a",
+  });
+
+  const jwt = await new SignJWT({
+    sub: session.userId,
+    sid: session.id,
+    aud: "http://localhost",
+    iss: "http://localhost",
+    cid: "client-b",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(secret);
+
+  const result = await getSessionFromRequest(`Bearer ${jwt}`, env);
+  assert.equal(result, null);
+});
+
+test("getSessionFromRequest falls back to iat when sca is missing", async () => {
+  const env = makeEnv();
+  const secret = new TextEncoder().encode(env.JWT_SECRET);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const issuedAt = nowSeconds - 5 * 24 * 60 * 60;
+
+  const jwt = await new SignJWT({
+    sub: "user-legacy-sca",
+    sid: "session-legacy-sca",
+    aud: "http://localhost",
+    iss: "http://localhost",
+    cid: "client-legacy",
+    email_enc: "enc-email",
+    email_iv: "iv-email",
+    pwd_enc: "enc-pass",
+    pwd_iv: "iv-pass",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(nowSeconds + 3600)
+    .sign(secret);
+
+  const session = await getSessionFromRequest(`Bearer ${jwt}`, env);
+  assert.ok(session);
+  assert.equal(session?.createdAt, issuedAt * 1000);
+  assert.equal(session?.sessionExpiresAt, issuedAt * 1000 + 30 * DAY_MS);
 });
 
 test("refresh_token grant rolls back when JWT signing fails", async () => {
