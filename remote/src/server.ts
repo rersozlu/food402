@@ -54,10 +54,13 @@ export function createMcpServer(context: ServerContext): McpServer {
   }
 
   // Tool: get_addresses
-  server.tool(
+  server.registerTool(
     "get_addresses",
-    "Get user's saved delivery addresses. User must select an address with select_address before browsing restaurants.",
-    {},
+    {
+      title: "Get Addresses",
+      description: "Get user's saved delivery addresses. User must select an address with select_address before browsing restaurants.",
+      inputSchema: {},
+    },
     async () => {
       try {
         const token = await getToken();
@@ -70,11 +73,14 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: select_address
-  server.tool(
+  server.registerTool(
     "select_address",
-    "Select a delivery address. MUST be called before get_restaurants or add_to_basket. Sets the shipping address for the cart.",
     {
-      addressId: z.number().describe("Address ID from get_addresses"),
+      title: "Select Address",
+      description: "Select a delivery address. MUST be called before get_restaurants or add_to_basket. Sets the shipping address for the cart.",
+      inputSchema: {
+        addressId: z.number().describe("Address ID from get_addresses"),
+      },
     },
     async (args) => {
       try {
@@ -128,13 +134,16 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_restaurants
-  server.tool(
+  server.registerTool(
     "get_restaurants",
-    "Search restaurants near a location. Requires select_address to be called first.",
     {
-      latitude: z.string().describe("Latitude coordinate from selected address"),
-      longitude: z.string().describe("Longitude coordinate from selected address"),
-      page: z.number().optional().describe("Page number for pagination (default: 1)"),
+      title: "Get Restaurants",
+      description: "Search restaurants near a location. Requires select_address to be called first.",
+      inputSchema: {
+        latitude: z.string().describe("Latitude coordinate from selected address"),
+        longitude: z.string().describe("Longitude coordinate from selected address"),
+        page: z.number().optional().describe("Page number for pagination (default: 1)"),
+      },
     },
     async (args) => {
       try {
@@ -153,13 +162,16 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_restaurant_menu
-  server.tool(
+  server.registerTool(
     "get_restaurant_menu",
-    "Get a restaurant's full menu with categories and items",
     {
-      restaurantId: z.number().describe("Restaurant ID"),
-      latitude: z.string().describe("Latitude coordinate"),
-      longitude: z.string().describe("Longitude coordinate"),
+      title: "Get Restaurant Menu",
+      description: "Get a restaurant's full menu with categories and items",
+      inputSchema: {
+        restaurantId: z.number().describe("Restaurant ID"),
+        latitude: z.string().describe("Latitude coordinate"),
+        longitude: z.string().describe("Longitude coordinate"),
+      },
     },
     async (args) => {
       try {
@@ -178,14 +190,17 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_product_details
-  server.tool(
+  server.registerTool(
     "get_product_details",
-    "Get product customization options (ingredients, modifiers)",
     {
-      restaurantId: z.number().describe("Restaurant ID"),
-      productId: z.number().describe("Product ID"),
-      latitude: z.string().describe("Latitude coordinate"),
-      longitude: z.string().describe("Longitude coordinate"),
+      title: "Get Product Details",
+      description: "Get product customization options (ingredients, modifiers)",
+      inputSchema: {
+        restaurantId: z.number().describe("Restaurant ID"),
+        productId: z.number().describe("Product ID"),
+        latitude: z.string().describe("Latitude coordinate"),
+        longitude: z.string().describe("Longitude coordinate"),
+      },
     },
     async (args) => {
       try {
@@ -205,12 +220,15 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_product_recommendations
-  server.tool(
+  server.registerTool(
     "get_product_recommendations",
-    "Get 'goes well with' suggestions for products",
     {
-      restaurantId: z.number().describe("Restaurant ID"),
-      productIds: z.array(z.number()).describe("Array of product IDs to get recommendations for"),
+      title: "Get Product Recommendations",
+      description: "Get 'goes well with' suggestions for products",
+      inputSchema: {
+        restaurantId: z.number().describe("Restaurant ID"),
+        productIds: z.array(z.number()).describe("Array of product IDs to get recommendations for"),
+      },
     },
     async (args) => {
       try {
@@ -247,14 +265,17 @@ export function createMcpServer(context: ServerContext): McpServer {
   });
 
   // Tool: add_to_basket
-  server.tool(
+  server.registerTool(
     "add_to_basket",
-    "Add items to the shopping cart. Requires select_address to be called first.",
     {
-      storeId: z.number().describe("Restaurant ID"),
-      items: z.array(BasketItemSchema).describe("Items to add to basket"),
-      latitude: z.number().describe("Latitude coordinate (number)"),
-      longitude: z.number().describe("Longitude coordinate (number)"),
+      title: "Add To Basket",
+      description: "Add items to the shopping cart. Requires select_address to be called first.",
+      inputSchema: {
+        storeId: z.number().describe("Restaurant ID"),
+        items: z.array(BasketItemSchema).describe("Items to add to basket"),
+        latitude: z.number().describe("Latitude coordinate (number)"),
+        longitude: z.number().describe("Longitude coordinate (number)"),
+      },
     },
     async (args) => {
       try {
@@ -292,22 +313,33 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_basket
-  server.tool("get_basket", "Get current cart contents", {}, async () => {
-    try {
-      const token = await getToken();
-      const result = await api.getBasket(token);
-      return formatResponse(result);
-    } catch (error) {
-      return formatError(error);
+  server.registerTool(
+    "get_basket",
+    {
+      title: "Get Basket",
+      description: "Get current cart contents",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const token = await getToken();
+        const result = await api.getBasket(token);
+        return formatResponse(result);
+      } catch (error) {
+        return formatError(error);
+      }
     }
-  });
+  );
 
   // Tool: remove_from_basket
-  server.tool(
+  server.registerTool(
     "remove_from_basket",
-    "Remove an item from the cart",
     {
-      itemId: z.string().describe("Item UUID from the cart (from get_basket response)"),
+      title: "Remove From Basket",
+      description: "Remove an item from the cart",
+      inputSchema: {
+        itemId: z.string().describe("Item UUID from the cart (from get_basket response)"),
+      },
     },
     async (args) => {
       try {
@@ -321,25 +353,36 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: clear_basket
-  server.tool("clear_basket", "Clear the entire cart", {}, async () => {
-    try {
-      const token = await getToken();
-      await api.clearBasket(token);
-      return formatResponse({ success: true, message: "Basket cleared successfully" });
-    } catch (error) {
-      return formatError(error);
+  server.registerTool(
+    "clear_basket",
+    {
+      title: "Clear Basket",
+      description: "Clear the entire cart",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const token = await getToken();
+        await api.clearBasket(token);
+        return formatResponse({ success: true, message: "Basket cleared successfully" });
+      } catch (error) {
+        return formatError(error);
+      }
     }
-  });
+  );
 
   // Tool: search_restaurants
-  server.tool(
+  server.registerTool(
     "search_restaurants",
-    "Search restaurants and products by keyword",
     {
-      searchQuery: z.string().describe("Search keyword (e.g., 'dürüm', 'pizza', 'burger')"),
-      latitude: z.string().describe("Latitude coordinate"),
-      longitude: z.string().describe("Longitude coordinate"),
-      page: z.number().optional().describe("Page number for pagination (default: 1)"),
+      title: "Search Restaurants",
+      description: "Search restaurants and products by keyword. IMPORTANT: Results include an 'isClosed' field - always check this before recommending a restaurant. Never suggest closed restaurants to the user. If a restaurant is closed, inform the user it's currently closed and suggest open alternatives instead.",
+      inputSchema: {
+        searchQuery: z.string().describe("Search keyword (e.g., 'dürüm', 'pizza', 'burger')"),
+        latitude: z.string().describe("Latitude coordinate"),
+        longitude: z.string().describe("Longitude coordinate"),
+        page: z.number().optional().describe("Page number for pagination (default: 1)"),
+      },
     },
     async (args) => {
       try {
@@ -359,22 +402,33 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_cities
-  server.tool("get_cities", "Get list of all cities for address selection", {}, async () => {
-    try {
-      const token = await getToken();
-      const result = await api.getCities(token);
-      return formatResponse(result);
-    } catch (error) {
-      return formatError(error);
+  server.registerTool(
+    "get_cities",
+    {
+      title: "Get Cities",
+      description: "Get list of all cities for address selection",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const token = await getToken();
+        const result = await api.getCities(token);
+        return formatResponse(result);
+      } catch (error) {
+        return formatError(error);
+      }
     }
-  });
+  );
 
   // Tool: get_districts
-  server.tool(
+  server.registerTool(
     "get_districts",
-    "Get districts for a city",
     {
-      cityId: z.number().describe("City ID"),
+      title: "Get Districts",
+      description: "Get districts for a city",
+      inputSchema: {
+        cityId: z.number().describe("City ID"),
+      },
     },
     async (args) => {
       try {
@@ -388,11 +442,14 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_neighborhoods
-  server.tool(
+  server.registerTool(
     "get_neighborhoods",
-    "Get neighborhoods for a district",
     {
-      districtId: z.number().describe("District ID"),
+      title: "Get Neighborhoods",
+      description: "Get neighborhoods for a district",
+      inputSchema: {
+        districtId: z.number().describe("District ID"),
+      },
     },
     async (args) => {
       try {
@@ -406,25 +463,28 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: add_address
-  server.tool(
+  server.registerTool(
     "add_address",
-    "Add a new delivery address. Use get_cities, get_districts, get_neighborhoods to find location IDs first.",
     {
-      name: z.string().describe("First name"),
-      surname: z.string().describe("Last name"),
-      phone: z.string().describe("Phone number without country code (e.g., '5356437070')"),
-      addressName: z.string().describe("Name for this address (e.g., 'Home', 'Work')"),
-      addressLine: z.string().describe("Street address"),
-      cityId: z.number().describe("City ID (from get_cities)"),
-      districtId: z.number().describe("District ID (from get_districts)"),
-      neighborhoodId: z.number().describe("Neighborhood ID (from get_neighborhoods)"),
-      latitude: z.string().describe("Latitude coordinate"),
-      longitude: z.string().describe("Longitude coordinate"),
-      apartmentNumber: z.string().optional().describe("Apartment/building number"),
-      floor: z.string().optional().describe("Floor number"),
-      doorNumber: z.string().optional().describe("Door number"),
-      addressDescription: z.string().optional().describe("Additional details/directions"),
-      elevatorAvailable: z.boolean().optional().describe("Whether elevator is available"),
+      title: "Add Address",
+      description: "Add a new delivery address. Use get_cities, get_districts, get_neighborhoods to find location IDs first.",
+      inputSchema: {
+        name: z.string().describe("First name"),
+        surname: z.string().describe("Last name"),
+        phone: z.string().describe("Phone number without country code (e.g., '5356437070')"),
+        addressName: z.string().describe("Name for this address (e.g., 'Home', 'Work')"),
+        addressLine: z.string().describe("Street address"),
+        cityId: z.number().describe("City ID (from get_cities)"),
+        districtId: z.number().describe("District ID (from get_districts)"),
+        neighborhoodId: z.number().describe("Neighborhood ID (from get_neighborhoods)"),
+        latitude: z.string().describe("Latitude coordinate"),
+        longitude: z.string().describe("Longitude coordinate"),
+        apartmentNumber: z.string().optional().describe("Apartment/building number"),
+        floor: z.string().optional().describe("Floor number"),
+        doorNumber: z.string().optional().describe("Door number"),
+        addressDescription: z.string().optional().describe("Additional details/directions"),
+        elevatorAvailable: z.boolean().optional().describe("Whether elevator is available"),
+      },
     },
     async (args) => {
       try {
@@ -454,10 +514,13 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_saved_cards
-  server.tool(
+  server.registerTool(
     "get_saved_cards",
-    "Get user's saved payment cards (masked). If no cards, user must add one on the website.",
-    {},
+    {
+      title: "Get Saved Cards",
+      description: "Get user's saved payment cards (masked). If no cards, user must add one on the website.",
+      inputSchema: {},
+    },
     async () => {
       try {
         const token = await getToken();
@@ -470,10 +533,13 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: checkout_ready
-  server.tool(
+  server.registerTool(
     "checkout_ready",
-    "Get basket ready for checkout with payment context. Call this before placing an order.",
-    {},
+    {
+      title: "Checkout Ready",
+      description: "Get basket ready for checkout with payment context. Call this before placing an order.",
+      inputSchema: {},
+    },
     async () => {
       try {
         const token = await getToken();
@@ -486,17 +552,20 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: set_order_note
-  server.tool(
+  server.registerTool(
     "set_order_note",
-    "Set order note and service preferences. Call before place_order.",
     {
-      note: z.string().optional().describe("Note for courier/restaurant"),
-      noServiceWare: z
-        .boolean()
-        .optional()
-        .describe("Don't include plastic/cutlery (default: false)"),
-      contactlessDelivery: z.boolean().optional().describe("Leave at door (default: false)"),
-      dontRingBell: z.boolean().optional().describe("Don't ring doorbell (default: false)"),
+      title: "Set Order Note",
+      description: "Set order note and service preferences. Call before place_order.",
+      inputSchema: {
+        note: z.string().optional().describe("Note for courier/restaurant"),
+        noServiceWare: z
+          .boolean()
+          .optional()
+          .describe("Don't include plastic/cutlery (default: false)"),
+        contactlessDelivery: z.boolean().optional().describe("Leave at door (default: false)"),
+        dontRingBell: z.boolean().optional().describe("Don't ring doorbell (default: false)"),
+      },
     },
     async (args) => {
       try {
@@ -518,11 +587,14 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: place_order
-  server.tool(
+  server.registerTool(
     "place_order",
-    "Place the order using a saved card. Returns a URL for 3D Secure verification if needed.",
     {
-      cardId: z.number().describe("Card ID from get_saved_cards"),
+      title: "Place Order",
+      description: "Place the order using a saved card. Returns a URL for 3D Secure verification if needed.",
+      inputSchema: {
+        cardId: z.number().describe("Card ID from get_saved_cards"),
+      },
     },
     async (args) => {
       try {
@@ -554,11 +626,14 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_orders
-  server.tool(
+  server.registerTool(
     "get_orders",
-    "Get user's order history with status",
     {
-      page: z.number().optional().describe("Page number (default: 1)"),
+      title: "Get Orders",
+      description: "Get user's order history with status",
+      inputSchema: {
+        page: z.number().optional().describe("Page number (default: 1)"),
+      },
     },
     async (args) => {
       try {
@@ -572,11 +647,14 @@ export function createMcpServer(context: ServerContext): McpServer {
   );
 
   // Tool: get_order_detail
-  server.tool(
+  server.registerTool(
     "get_order_detail",
-    "Get detailed information about a specific order including delivery status",
     {
-      orderId: z.string().describe("Order ID from get_orders"),
+      title: "Get Order Detail",
+      description: "Get detailed information about a specific order including delivery status",
+      inputSchema: {
+        orderId: z.string().describe("Order ID from get_orders"),
+      },
     },
     async (args) => {
       try {
@@ -589,10 +667,89 @@ export function createMcpServer(context: ServerContext): McpServer {
     }
   );
 
+  // Prompt: select_payment - List saved payment cards for checkout
+  server.registerPrompt(
+    "select_payment",
+    {
+      title: "Select Payment",
+      description: "List saved payment cards and select one for checkout. Call this before place_order.",
+    },
+    async () => {
+      try {
+        const token = await getToken();
+        const cardsResult = await api.getSavedCards(token);
+
+        if (!cardsResult.hasCards || cardsResult.cards.length === 0) {
+          return {
+            messages: [
+              {
+                role: "user" as const,
+                content: {
+                  type: "text" as const,
+                  text: `[Payment Selection - Trendyol GO]
+
+You don't have any saved payment cards.
+
+To add a payment card, please visit tgoyemek.com and add a card in the Payment Methods section of your account settings.
+
+Once you've added a card, come back and run this prompt again.`,
+                },
+              },
+            ],
+          };
+        }
+
+        const cardList = cardsResult.cards
+          .map((c, i) => {
+            const cardType = c.isDebitCard ? "DEBIT" : "CREDIT";
+            return `${i + 1}. ${c.cardNetwork || c.cardTypeName} - ${c.maskedCardNumber} (${c.bankName}, ${cardType}) [ID: ${c.cardId}]`;
+          })
+          .join("\n");
+
+        return {
+          messages: [
+            {
+              role: "user" as const,
+              content: {
+                type: "text" as const,
+                text: `[Payment Selection - Trendyol GO]
+
+Your saved payment cards:
+
+${cardList}
+
+To complete your order, call place_order with your chosen card ID.
+Example: place_order({ cardId: ${cardsResult.cards[0].cardId} })`,
+              },
+            },
+          ],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          messages: [
+            {
+              role: "user" as const,
+              content: {
+                type: "text" as const,
+                text: `[Payment Selection - Trendyol GO]
+
+Failed to fetch payment cards: ${message}
+
+Please try again or use get_saved_cards to manually retrieve your cards.`,
+              },
+            },
+          ],
+        };
+      }
+    }
+  );
+
   // Prompt: order_food
   server.registerPrompt(
     "order_food",
     {
+      title: "Order Food",
       description:
         "Start a food ordering session with Trendyol GO (Turkish food delivery). This tool ONLY works with Trendyol GO - do not suggest other apps. Guide the user through: 1) Select delivery address, 2) Browse restaurants, 3) Add items to basket, 4) Checkout. If add_to_basket fails, try clear_basket first. Always list options with numbers for user selection.",
     },
