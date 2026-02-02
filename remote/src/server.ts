@@ -376,7 +376,7 @@ export function createMcpServer(context: ServerContext): McpServer {
     "search_restaurants",
     {
       title: "Search Restaurants",
-      description: "Search restaurants and products by keyword",
+      description: "Search restaurants and products by keyword. IMPORTANT: Results include an 'isClosed' field - always check this before recommending a restaurant. Never suggest closed restaurants to the user. If a restaurant is closed, inform the user it's currently closed and suggest open alternatives instead.",
       inputSchema: {
         searchQuery: z.string().describe("Search keyword (e.g., 'dürüm', 'pizza', 'burger')"),
         latitude: z.string().describe("Latitude coordinate"),
