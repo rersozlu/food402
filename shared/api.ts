@@ -49,6 +49,10 @@ import type {
   OrderDetailProduct,
   OrderStatusStep,
   OrderDetail,
+  GoogleReview,
+  GooglePlaceMatch,
+  GoogleReviewsResponse,
+  GetGoogleReviewsRequest,
 } from "./types.js";
 
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
@@ -1217,6 +1221,459 @@ export async function searchRestaurants(
     hasNextPage: !!data.links?.next?.href,
     searchQuery: data.searchQuery ?? searchQuery,
   };
+}
+
+// ============================================
+// Google Reviews Helper Functions
+// ============================================
+
+/**
+ * Normalize restaurant name for comparison
+ * - Lowercase
+ * - Remove common suffixes (Restaurant, Cafe, etc.)
+ * - Normalize Turkish characters
+ * - Remove punctuation and extra whitespace
+ */
+export function normalizeRestaurantName(name: string): string {
+  // Turkish character mapping (both cases mapped to lowercase)
+  const turkishMap: Record<string, string> = {
+    'ş': 's', 'Ş': 's',
+    'ğ': 'g', 'Ğ': 'g',
+    'ı': 'i', 'İ': 'i',
+    'ö': 'o', 'Ö': 'o',
+    'ü': 'u', 'Ü': 'u',
+    'ç': 'c', 'Ç': 'c',
+  };
+
+  let normalized = name;
+
+  // Replace Turkish characters BEFORE lowercasing (İ.toLowerCase() can produce odd results)
+  for (const [turkish, latin] of Object.entries(turkishMap)) {
+    normalized = normalized.replace(new RegExp(turkish, 'g'), latin);
+  }
+
+  normalized = normalized.toLowerCase();
+
+  // Remove parenthetical content like "(Beytepe)" or "(Çayyolu)"
+  normalized = normalized.replace(/\s*\([^)]*\)\s*/g, ' ');
+
+  // Remove content after " - " (Google often appends location like "- Çankaya")
+  normalized = normalized.replace(/\s*-\s+.*$/, '');
+
+  // Remove common suffixes
+  const suffixes = ['restaurant', 'restoran', 'cafe', 'kafe', 'kitchen', 'mutfak', 'kebap', 'kebab'];
+  for (const suffix of suffixes) {
+    normalized = normalized.replace(new RegExp(`\\s*${suffix}\\s*$`, 'i'), '');
+  }
+
+  // Remove punctuation and normalize whitespace
+  normalized = normalized
+    .replace(/[''`´]/g, '') // Remove apostrophes
+    .replace(/[^\w\s]/g, ' ') // Replace other punctuation with space
+    .replace(/\s+/g, ' ') // Normalize multiple spaces
+    .trim();
+
+  return normalized;
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const m = str1.length;
+  const n = str2.length;
+
+  // Create a 2D array to store distances
+  const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+
+  // Initialize base cases
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  // Fill in the rest of the matrix
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(
+          dp[i - 1][j],     // deletion
+          dp[i][j - 1],     // insertion
+          dp[i - 1][j - 1]  // substitution
+        );
+      }
+    }
+  }
+
+  return dp[m][n];
+}
+
+/**
+ * Calculate Levenshtein similarity (0-1) between two strings
+ */
+export function calculateLevenshteinSimilarity(str1: string, str2: string): number {
+  const distance = levenshteinDistance(str1, str2);
+  const maxLength = Math.max(str1.length, str2.length);
+  if (maxLength === 0) return 1;
+  return 1 - (distance / maxLength);
+}
+
+/**
+ * Calculate Haversine distance between two points (in km)
+ */
+export function haversineDistance(
+  point1: { latitude: number; longitude: number },
+  point2: { latitude: number; longitude: number }
+): number {
+  const R = 6371; // Earth's radius in km
+
+  const lat1Rad = (point1.latitude * Math.PI) / 180;
+  const lat2Rad = (point2.latitude * Math.PI) / 180;
+  const deltaLat = ((point2.latitude - point1.latitude) * Math.PI) / 180;
+  const deltaLon = ((point2.longitude - point1.longitude) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+    Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
+// ============================================
+// Google Places API Functions
+// ============================================
+
+const GOOGLE_PLACES_API_BASE = "https://places.googleapis.com/v1";
+
+interface GooglePlaceCandidate {
+  id: string;
+  displayName: { text: string };
+  formattedAddress: string;
+  location: { latitude: number; longitude: number };
+}
+
+interface GooglePlaceSearchResponse {
+  places?: GooglePlaceCandidate[];
+}
+
+interface GooglePlaceDetailsResponse {
+  id: string;
+  displayName: { text: string };
+  formattedAddress: string;
+  location: { latitude: number; longitude: number };
+  rating?: number;
+  userRatingCount?: number;
+  reviews?: Array<{
+    authorAttribution: { displayName: string };
+    rating: number;
+    relativePublishTimeDescription: string;
+    text?: { text: string };
+    publishTime: string;
+  }>;
+}
+
+// Legacy API response format (supports reviews_sort=newest)
+interface LegacyPlaceDetailsResponse {
+  status: string;
+  result?: {
+    place_id: string;
+    name: string;
+    formatted_address: string;
+    geometry: { location: { lat: number; lng: number } };
+    rating?: number;
+    user_ratings_total?: number;
+    reviews?: Array<{
+      author_name: string;
+      rating: number;
+      relative_time_description: string;
+      text: string;
+      time: number; // Unix timestamp
+    }>;
+  };
+}
+
+/**
+ * Search for a place using Google Places Text Search API
+ */
+export async function searchGooglePlace(
+  apiKey: string,
+  name: string,
+  neighborhood: string,
+  lat: number,
+  lng: number
+): Promise<GooglePlaceCandidate[]> {
+  const searchQuery = `${name} ${neighborhood}`;
+
+  const response = await fetch(`${GOOGLE_PLACES_API_BASE}/places:searchText`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
+    },
+    body: JSON.stringify({
+      textQuery: searchQuery,
+      locationBias: {
+        circle: {
+          center: { latitude: lat, longitude: lng },
+          radius: 5000, // 5km radius
+        },
+      },
+      maxResultCount: 5,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Google Places API rate limit exceeded. Please try again later.");
+    }
+    throw new Error(`Google Places search failed: ${response.status} ${response.statusText}`);
+  }
+
+  const data: GooglePlaceSearchResponse = await response.json();
+  return data.places || [];
+}
+
+/**
+ * Get place details including reviews from Google Places API
+ * Uses legacy API for reviews to support sorting by newest
+ */
+export async function getGooglePlaceDetails(
+  apiKey: string,
+  placeId: string
+): Promise<GooglePlaceDetailsResponse | null> {
+  // Use Legacy Places API for reviews - it supports reviews_sort=newest
+  const legacyUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=place_id,name,formatted_address,geometry,rating,user_ratings_total,reviews&reviews_sort=newest&key=${apiKey}`;
+
+  const response = await fetch(legacyUrl, {
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Google Places API rate limit exceeded. Please try again later.");
+    }
+    // Don't throw for details failure, return null to allow fallback
+    return null;
+  }
+
+  const legacyData: LegacyPlaceDetailsResponse = await response.json();
+
+  if (legacyData.status !== "OK" || !legacyData.result) {
+    return null;
+  }
+
+  const result = legacyData.result;
+
+  // Convert legacy format to our standard format
+  return {
+    id: result.place_id,
+    displayName: { text: result.name },
+    formattedAddress: result.formatted_address,
+    location: {
+      latitude: result.geometry.location.lat,
+      longitude: result.geometry.location.lng,
+    },
+    rating: result.rating,
+    userRatingCount: result.user_ratings_total,
+    reviews: (result.reviews || []).map((r) => ({
+      authorAttribution: { displayName: r.author_name },
+      rating: r.rating,
+      relativePublishTimeDescription: r.relative_time_description,
+      text: { text: r.text },
+      publishTime: new Date(r.time * 1000).toISOString(),
+    })),
+  };
+}
+
+/**
+ * Calculate match score for a Google Place candidate
+ * Score = Name Similarity (40%) + Distance Consistency (35%) + Neighborhood Match (25%)
+ */
+export function calculateMatchScore(
+  candidate: GooglePlaceCandidate,
+  tgoName: string,
+  tgoNeighborhood: string,
+  tgoDistance: number,
+  userLocation: { latitude: number; longitude: number }
+): number {
+  // 1. Name similarity (40%)
+  const normalizedTgoName = normalizeRestaurantName(tgoName);
+  const normalizedGoogleName = normalizeRestaurantName(candidate.displayName.text);
+
+  // Use Levenshtein similarity, but also check if one contains the other
+  let nameSimilarity = calculateLevenshteinSimilarity(normalizedTgoName, normalizedGoogleName);
+
+  // Boost score if TGO name is contained in Google name or vice versa
+  if (normalizedGoogleName.includes(normalizedTgoName) || normalizedTgoName.includes(normalizedGoogleName)) {
+    nameSimilarity = Math.max(nameSimilarity, 0.85);
+  }
+
+  // Also check without spaces (handles "Pizza Bulls" vs "Pizzabulls")
+  const tgoNoSpaces = normalizedTgoName.replace(/\s+/g, '');
+  const googleNoSpaces = normalizedGoogleName.replace(/\s+/g, '');
+  if (googleNoSpaces.includes(tgoNoSpaces) || tgoNoSpaces.includes(googleNoSpaces)) {
+    nameSimilarity = Math.max(nameSimilarity, 0.85);
+  }
+
+  // 2. Distance consistency (35%)
+  // Calculate Google's distance from user
+  const googleDistanceKm = haversineDistance(userLocation, candidate.location);
+  // TGO distance unit is inconsistent: >100 means meters, otherwise km
+  const tgoDistanceKm = tgoDistance > 100 ? tgoDistance / 1000 : tgoDistance;
+  // Calculate how consistent the distances are (allow for some variance)
+  const distanceDiff = Math.abs(googleDistanceKm - tgoDistanceKm);
+  // If difference is less than 1km, full score; up to 3km, partial; beyond 3km, low score
+  const distanceConsistency = distanceDiff < 1 ? 1 : distanceDiff < 3 ? 1 - ((distanceDiff - 1) / 2) : 0;
+
+  // 3. Neighborhood match (25%)
+  // Check if Google address contains the TGO neighborhood name
+  const normalizedNeighborhood = normalizeRestaurantName(tgoNeighborhood);
+  const normalizedAddress = normalizeRestaurantName(candidate.formattedAddress);
+  const neighborhoodMatch = normalizedAddress.includes(normalizedNeighborhood) ? 1 : 0;
+
+  // Calculate weighted score
+  const score = (nameSimilarity * 0.40) + (distanceConsistency * 0.35) + (neighborhoodMatch * 0.25);
+
+  return Math.round(score * 100);
+}
+
+/**
+ * Main function to get Google reviews for a restaurant
+ * Uses branch matching algorithm to find the correct location
+ */
+export async function getGoogleReviews(
+  apiKey: string,
+  request: GetGoogleReviewsRequest
+): Promise<GoogleReviewsResponse> {
+  if (!apiKey) {
+    return {
+      found: false,
+      error: "GOOGLE_PLACES_API_KEY not configured. Set it in your environment.",
+    };
+  }
+
+  const userLocation = {
+    latitude: parseFloat(request.latitude),
+    longitude: parseFloat(request.longitude),
+  };
+
+  // Step 1: Search for candidates
+  let candidates: GooglePlaceCandidate[];
+  try {
+    candidates = await searchGooglePlace(
+      apiKey,
+      request.restaurantName,
+      request.neighborhoodName,
+      userLocation.latitude,
+      userLocation.longitude
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      found: false,
+      error: message,
+    };
+  }
+
+  if (candidates.length === 0) {
+    return {
+      found: false,
+      error: `No Google Places found for "${request.restaurantName}" near ${request.neighborhoodName}`,
+    };
+  }
+
+  // Step 2: Score each candidate and find best match
+  const scoredCandidates = candidates.map((candidate) => ({
+    candidate,
+    score: calculateMatchScore(
+      candidate,
+      request.restaurantName,
+      request.neighborhoodName,
+      request.tgoDistance,
+      userLocation
+    ),
+  }));
+
+  // Sort by score descending
+  scoredCandidates.sort((a, b) => b.score - a.score);
+  const bestMatch = scoredCandidates[0];
+
+  // Require minimum 70% confidence
+  if (bestMatch.score < 70) {
+    return {
+      found: false,
+      error: `Low confidence match (${bestMatch.score}%). Best candidate: "${bestMatch.candidate.displayName.text}" at ${bestMatch.candidate.formattedAddress}`,
+    };
+  }
+
+  // Step 3: Get place details with reviews
+  const match: GooglePlaceMatch = {
+    placeId: bestMatch.candidate.id,
+    displayName: bestMatch.candidate.displayName.text,
+    formattedAddress: bestMatch.candidate.formattedAddress,
+    location: bestMatch.candidate.location,
+    matchScore: bestMatch.score,
+  };
+
+  try {
+    const details = await getGooglePlaceDetails(apiKey, bestMatch.candidate.id);
+
+    if (!details) {
+      // Return basic match without reviews
+      return {
+        found: true,
+        match,
+        error: "Could not fetch reviews (place details unavailable)",
+      };
+    }
+
+    // Transform reviews (already sorted by newest from legacy API)
+    const reviews: GoogleReview[] = (details.reviews || [])
+      .slice(0, 10)
+      .map((r) => ({
+        authorName: r.authorAttribution.displayName,
+        rating: r.rating,
+        relativeTimeDescription: r.relativePublishTimeDescription,
+        text: r.text?.text || "",
+        publishTime: r.publishTime,
+      }));
+
+    // Build comparison if we have both ratings
+    const googleRating = details.rating || 0;
+    const tgoRating = request.tgoRating || 0;
+    const ratingDiff = googleRating - tgoRating;
+    const comparison = (googleRating && tgoRating) ? {
+      tgoRating,
+      googleRating,
+      ratingDifference: Math.round(ratingDiff * 10) / 10,
+      summary: ratingDiff > 0.3
+        ? `Google rates higher (+${ratingDiff.toFixed(1)})`
+        : ratingDiff < -0.3
+        ? `TGO rates higher (${ratingDiff.toFixed(1)})`
+        : `Ratings are similar`,
+    } : undefined;
+
+    return {
+      found: true,
+      match,
+      rating: details.rating,
+      userRatingCount: details.userRatingCount,
+      reviews,
+      comparison,
+    };
+  } catch (error) {
+    // Return match without reviews on details failure
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      found: true,
+      match,
+      error: `Could not fetch reviews: ${message}`,
+    };
+  }
 }
 
 // Re-export types for convenience
