@@ -29,17 +29,42 @@ export class SessionStore {
     });
   }
 
-  async getSession(sessionId: string): Promise<UserSession | null> {
+  // Helper for raw KV read (no expiry check, no update)
+  private async getRawSession(sessionId: string): Promise<UserSession | null> {
     const key = `session:${sessionId}`;
-    // JWT fallback in oauth-provider.ts handles KV eventual consistency
     const data = await this.env.SESSIONS.get(key);
     if (!data) return null;
+    return JSON.parse(data) as UserSession;
+  }
 
-    const session = JSON.parse(data) as UserSession;
+  async getSession(sessionId: string): Promise<UserSession | null> {
+    const session = await this.getRawSession(sessionId);
+    if (!session) return null;
+
+    // Check hard expiry (Fix 3: Fixed session expiry)
+    if (session.sessionExpiresAt && Date.now() > session.sessionExpiresAt) {
+      await this.deleteSessionById(sessionId, session); // Pass session - no extra read
+      return null;
+    }
 
     // Update last used timestamp
     session.lastUsedAt = Date.now();
     await this.updateSession(session);
+
+    return session;
+  }
+
+  // Read session without updating TTL (Fix 6: Lazy session update)
+  // Used during refresh token validation to avoid resetting TTL before validation passes
+  async getSessionWithoutUpdate(sessionId: string): Promise<UserSession | null> {
+    const session = await this.getRawSession(sessionId);
+    if (!session) return null;
+
+    // Check hard expiry (Fix 3: Fixed session expiry)
+    if (session.sessionExpiresAt && Date.now() > session.sessionExpiresAt) {
+      await this.deleteSessionById(sessionId, session); // Pass session - no extra read
+      return null;
+    }
 
     return session;
   }
@@ -68,18 +93,25 @@ export class SessionStore {
     });
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
-    const session = await this.getSession(sessionId);
-    if (!session) return;
+  // Bug Fix A: Helper that accepts optional pre-parsed session to avoid extra KV read
+  // Called by getSession/getSessionWithoutUpdate when session is already parsed
+  private async deleteSessionById(sessionId: string, session?: UserSession): Promise<void> {
+    const existing = session ?? await this.getRawSession(sessionId);
+    if (!existing) return;
 
-    // Remove session
     await this.env.SESSIONS.delete(`session:${sessionId}`);
+    await this.env.SESSIONS.delete(`user:${existing.userId}:session`);
+    if (existing.accessToken) {
+      await this.env.SESSIONS.delete(`token:${existing.accessToken}`);
+    }
+    if (existing.refreshToken) {
+      await this.env.SESSIONS.delete(`refresh:${existing.refreshToken}`);
+    }
+  }
 
-    // Remove user index
-    await this.env.SESSIONS.delete(`user:${session.userId}:session`);
-
-    // Remove token index
-    await this.env.SESSIONS.delete(`token:${session.accessToken}`);
+  // Public API for deleting sessions
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.deleteSessionById(sessionId);
   }
 
   async indexSessionByToken(sessionId: string, accessToken: string): Promise<void> {
@@ -87,6 +119,35 @@ export class SessionStore {
     await this.env.SESSIONS.put(tokenKey, sessionId, {
       expirationTtl: SESSION_TTL,
     });
+  }
+
+  // Delete access token index (Fix 4: cleanup during rotation)
+  async deleteTokenIndex(accessToken: string): Promise<void> {
+    const key = `token:${accessToken}`;
+    await this.env.SESSIONS.delete(key);
+  }
+
+  // Index session by refresh token for lookup
+  async indexSessionByRefreshToken(sessionId: string, refreshToken: string): Promise<void> {
+    const key = `refresh:${refreshToken}`;
+    await this.env.SESSIONS.put(key, sessionId, {
+      expirationTtl: SESSION_TTL,
+    });
+  }
+
+  // Look up session by refresh token (Fix 6: uses non-updating read)
+  // Avoids resetting TTL before refresh token validation passes
+  async getSessionByRefreshToken(refreshToken: string): Promise<UserSession | null> {
+    const key = `refresh:${refreshToken}`;
+    const sessionId = await this.env.SESSIONS.get(key);
+    if (!sessionId) return null;
+    return this.getSessionWithoutUpdate(sessionId);
+  }
+
+  // Delete refresh token index (for rotation)
+  async deleteRefreshTokenIndex(refreshToken: string): Promise<void> {
+    const key = `refresh:${refreshToken}`;
+    await this.env.SESSIONS.delete(key);
   }
 
   // === OAuth Client Management ===

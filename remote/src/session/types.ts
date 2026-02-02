@@ -24,6 +24,12 @@ export interface UserSession {
   createdAt: number;
   lastUsedAt: number;
 
+  // Security: OAuth client binding
+  clientId?: string;  // OAuth client that owns this session
+
+  // Security: Fixed session expiry (30 days from creation, non-sliding)
+  sessionExpiresAt?: number;  // Unix timestamp in milliseconds
+
   // Selected delivery address (persisted between requests)
   selectedAddressId?: number;
   selectedLatitude?: string;
