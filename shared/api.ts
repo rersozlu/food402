@@ -51,7 +51,7 @@ import type {
   OrderDetail,
 } from "./types.js";
 
-const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
+const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const API_BASE = "https://api.tgoapis.com";
 const PAYMENT_API_BASE = "https://payment.tgoapps.com";
 
@@ -86,22 +86,22 @@ function createHeaders(token: string, contentType?: string): Record<string, stri
 }
 
 // Helper to create payment headers
-function createPaymentHeaders(token: string, correlationId?: string, pid?: string, sid?: string): Record<string, string> {
+function createPaymentHeaders(token: string): Record<string, string> {
   return {
-    "Accept": "application/json, text/plain, */*",
-    "Authorization": `Bearer ${token}`,
+    "accept": "*/*",
+    "accept-language": "tr-TR",
+    "Authorization": `bearer ${token}`,
     "Content-Type": "application/json",
     "User-Agent": USER_AGENT,
-    "Origin": "https://tgoyemek.com",
+    "referer": "https://payment.tgoapps.com/v3/tgo/card-fragment?application-id=1&storefront-id=1&culture=tr-TR",
     "app-name": "TrendyolGo",
     "x-applicationid": "1",
     "x-channelid": "4",
     "x-storefrontid": "1",
-    "x-features": "OPTIONAL_REBATE;MEAL_CART_ENABLED",
+    "x-features": "OPTIONAL_REBATE;MEAL_CART_ENABLED;MEAL_CARD_TRENDYOL_PROMOTION;PICKUP_FEE_ENABLED;VAS_QUANTITY_ENABLED;",
     "x-supported-payment-options": "MULTINET;SODEXO;EDENRED;ON_DELIVERY;SETCARD",
-    "x-correlationid": correlationId || generateUUID(),
-    "pid": pid || generateUUID(),
-    "sid": sid || generateUUID(),
+    "x-session-id": "",  // intentionally empty - required by payment API but value not needed
+    "x-personalization-id": "",  // intentionally empty - required by payment API but value not needed
   };
 }
 
@@ -891,17 +891,12 @@ export async function placeOrder(token: string, cardId: number): Promise<PlaceOr
   // Extract bin code from masked card number (first 6 digits + **)
   const binCode = card.maskedCardNumber.substring(0, 6) + "**";
 
-  // Use the same session IDs across all payment-related calls
-  const correlationId = generateUUID();
-  const pid = generateUUID();
-  const sid = generateUUID();
+  const paymentHeaders = createPaymentHeaders(token);
 
-  const paymentHeaders = createPaymentHeaders(token, correlationId, pid, sid);
-
-  // Step 1: Initialize cart state in payment system
+  // Step 1: Initialize cart state (uses standard API headers for API_BASE)
   const checkoutResponse = await fetch(
     `${API_BASE}/web-checkout-apicheckout-santral/carts?cartContext=payment&limitPromoMbs=false`,
-    { method: "GET", headers: paymentHeaders }
+    { method: "GET", headers: createHeaders(token) }
   );
 
   if (!checkoutResponse.ok) {
