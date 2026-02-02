@@ -13,7 +13,11 @@
     "start": "tsx src/index.ts",
     "build": "tsc",
     "postinstall": "node dist/src/postinstall.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run --config test/vitest.config.ts",
+    "test:watch": "vitest --config test/vitest.config.ts",
+    "test:coverage": "vitest run --config test/vitest.config.ts --coverage",
+    "test:security": "vitest run --config test/vitest.config.ts test/security/"
   },
   "keywords": [
     "mcp",
@@ -36,7 +40,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.18"
   }
 }

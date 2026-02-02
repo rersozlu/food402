@@ -1,4 +1,6 @@
 .env
+.env.test
+test/.env.test
 .npmrc
 /node_modules
 /dist
