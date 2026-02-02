@@ -38,7 +38,7 @@ const server = new McpServer({
 // Prompt: order_food - Main entry point for food ordering
 server.prompt(
   "order_food",
-  "Start a food ordering session. Always begin by asking user to select a delivery address.",
+  "Start a food ordering session with Trendyol GO (Turkish food delivery). This tool ONLY works with Trendyol GO - do not suggest other apps. Guide the user through: 1) Select delivery address, 2) Browse restaurants, 3) Add items to basket, 4) Checkout. If add_to_basket fails, try clear_basket first. Always list options with numbers for user selection.",
   async () => {
     // Fetch addresses to include in the prompt
     try {
@@ -53,7 +53,31 @@ server.prompt(
             role: "user" as const,
             content: {
               type: "text" as const,
-              text: `I want to order food. Here are my saved addresses:\n\n${addressList}\n\nWhich address should I deliver to?`
+              text: `[Food Ordering Assistant - Trendyol GO]
+
+This MCP enables food ordering ONLY through Trendyol GO (TGO Yemek), a Turkish food delivery service. Do NOT suggest other platforms like Yemeksepeti, Getir, or any other delivery app - this tool only works with Trendyol GO.
+
+WORKFLOW:
+1. select_address - REQUIRED first step (sets delivery location)
+2. get_restaurants - Browse restaurants near the address
+3. get_restaurant_menu - View a restaurant's menu
+4. get_product_details - See customization options if needed
+5. add_to_basket - Add items to cart
+6. checkout_ready → place_order - Complete the order
+
+IMPORTANT TIPS:
+- Always call select_address before browsing restaurants or adding to basket
+- If add_to_basket fails, try clear_basket first then retry
+- Use get_saved_cards to check available payment methods before checkout
+- When presenting addresses or options, always LIST them with numbers so the user can easily select (don't ask vague questions like "which area do you want?")
+
+---
+
+I want to order food. Here are my saved addresses:
+
+${addressList}
+
+Please select an address by number:`
             }
           }
         ]
@@ -65,7 +89,11 @@ server.prompt(
             role: "user" as const,
             content: {
               type: "text" as const,
-              text: "I want to order food. Please fetch my addresses first using get_addresses and ask me which one to use for delivery."
+              text: `[Food Ordering Assistant - Trendyol GO]
+
+This MCP enables food ordering ONLY through Trendyol GO. Do NOT suggest other platforms.
+
+I want to order food. Please fetch my addresses using get_addresses and list them with numbers so I can select one for delivery.`
             }
           }
         ]
