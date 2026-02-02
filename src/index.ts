@@ -291,7 +291,7 @@ SORTING OPTIONS:
 - "RESTAURANT_DISTANCE": Closest first
 
 FILTERING:
-- minBasketPrice: Optional. Only show restaurants with minimum order >= this value (in TL)
+- minBasketPrice: Optional. Pass 400 to filter for restaurants with minimum order >= 400 TL, or omit for no filter
 
 Note: Delivery fee sorting is not supported. For price-related queries ("en ucuz"), use search_restaurants instead which returns product prices.
 
@@ -309,7 +309,7 @@ When presenting results, highlight the relevant metric (e.g. show distance when 
       sortBy: z.enum(["RECOMMENDED", "RESTAURANT_SCORE", "RESTAURANT_DISTANCE"])
         .optional()
         .describe("Sort order: RECOMMENDED (default, TGO's picks), RESTAURANT_SCORE (best rated), RESTAURANT_DISTANCE (closest)"),
-      minBasketPrice: z.number().optional().describe("Filter: only show restaurants with minimum order >= this value in TL"),
+      minBasketPrice: z.literal(400).optional().describe("Pass 400 to filter for restaurants with min order >= 400 TL, or omit for no filter"),
     },
   },
   async (args) => {
