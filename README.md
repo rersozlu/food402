@@ -10,8 +10,8 @@ Food402 supports two deployment methods:
 
 | Method | Best For | Transport | Auth |
 |--------|----------|-----------|------|
-| **Local MCP Server** | Claude Desktop, Claude Code, ChatGPT (Developer Mode), Codex CLI | stdio | Environment variables |
-| **Remote MCP Server** | Claude.ai (web) | HTTP | OAuth 2.0 |
+| **Local MCP Server** | Claude Desktop, Claude Code, Cursor, Codex CLI | stdio | Environment variables |
+| **Remote MCP Server** | Claude.ai (web), ChatGPT (Developer Mode) | HTTP | OAuth 2.0 |
 
 ---
 
