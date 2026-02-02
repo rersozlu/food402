@@ -6,7 +6,7 @@ import type { Env, UserSession, OAuthAuthorizationCode, OAuthClient } from "../s
 import { SessionStore } from "../session/store.js";
 import { renderLoginPage, renderErrorPage } from "./login-page.js";
 import { encrypt, generateUUID, generateRandomHex, verifyPKCE } from "./crypto.js";
-import { authenticateWithTGO, validateTGOCredentials } from "./tgo-auth.js";
+import { authenticateWithTGO, validateTGOCredentials, getTGOToken } from "./tgo-auth.js";
 
 // Create OAuth routes
 export function createOAuthRoutes() {
@@ -247,6 +247,8 @@ export function createOAuthRoutes() {
         accessTokenExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
         createdAt: Date.now(),
         lastUsedAt: Date.now(),
+        clientId,  // Fix 2: Client binding
+        sessionExpiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,  // Fix 3: Fixed 30-day expiry
       };
 
       await store.createSession(session);
@@ -417,47 +419,82 @@ export function createOAuthRoutes() {
         return c.json({ error: "invalid_grant", error_description: "Session not found" }, 400);
       }
 
-      // Generate new access token
+      // Require client binding - reject legacy sessions without clientId
+      if (!session.clientId) {
+        return c.json({ error: "invalid_grant", error_description: "Session requires re-authentication" }, 400);
+      }
+
+      // Save old tokens for cleanup + rollback
+      const oldAccessToken = session.accessToken;
+      const oldRefreshToken = session.refreshToken;
+      const oldAccessTokenExpiry = session.accessTokenExpiry;
+      const oldLastUsedAt = session.lastUsedAt;
+
       const newAccessToken = generateRandomHex(32);
       const newRefreshToken = generateRandomHex(32);
 
-      // Update session with new tokens
-      session.accessToken = newAccessToken;
-      session.refreshToken = newRefreshToken;
-      session.accessTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+      let jwt: string;
+      try {
+        // Update session with new tokens
+        session.accessToken = newAccessToken;
+        session.refreshToken = newRefreshToken;
+        session.accessTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+        session.lastUsedAt = Date.now();
 
-      await store.updateSession(session);
-      await store.indexSessionByToken(session.id, newAccessToken);
+        await store.updateSession(session);
+        await store.indexSessionByToken(session.id, newAccessToken);
+        await store.indexSessionByRefreshToken(session.id, newRefreshToken);
 
-      // Create JWT for access token
-      // Embed encrypted credentials in JWT payload to handle KV eventual consistency
-      // This allows the /mcp endpoint to reconstruct a working session from the JWT itself
-      // even if the KV read misses due to edge propagation delays
-      const baseUrl = new URL(c.req.url).origin;
-      const audience = authCode.resource || resource || baseUrl;
-      const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-      const jwt = await new SignJWT({
-        sub: session.userId,
-        sid: session.id,
-        aud: audience,  // Audience claim (RFC 8707)
-        iss: baseUrl,  // Issuer claim
-        // Embed encrypted credentials for KV-independent operation
-        email_enc: session.encryptedEmail,
-        email_iv: session.encryptionIv,
-        pwd_enc: session.encryptedPassword,
-        pwd_iv: session.encryptionIvPassword || session.encryptionIv,
-      })
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime("1h")
-        .sign(secret);
+        // Create JWT for access token
+        const baseUrl = new URL(c.req.url).origin;
+        const audience = authCode.resource || resource || baseUrl;
+        const secret = new TextEncoder().encode(c.env.JWT_SECRET);
+
+        jwt = await new SignJWT({
+          sub: session.userId,
+          sid: session.id,
+          aud: audience,
+          iss: baseUrl,
+          cid: session.clientId,  // Client binding for reconstruction
+          sca: Math.floor(session.createdAt / 1000),  // Session created at (seconds)
+          email_enc: session.encryptedEmail,
+          email_iv: session.encryptionIv,
+          pwd_enc: session.encryptedPassword,
+          pwd_iv: session.encryptionIvPassword || session.encryptionIv,
+        })
+          .setProtectedHeader({ alg: "HS256" })
+          .setIssuedAt()
+          .setExpirationTime("1h")
+          .sign(secret);
+      } catch (error) {
+        // Rollback: restore old tokens so client can retry
+        session.accessToken = oldAccessToken || '';
+        session.refreshToken = oldRefreshToken;
+        session.accessTokenExpiry = oldAccessTokenExpiry;
+        session.lastUsedAt = oldLastUsedAt;
+        await store.updateSession(session).catch(() => {});
+        await store.deleteTokenIndex(newAccessToken).catch(() => {});
+        await store.deleteRefreshTokenIndex(newRefreshToken).catch(() => {});
+        return c.json({
+          error: "server_error",
+          error_description: "Token generation failed, please retry",
+        }, 500);
+      }
+
+      // SUCCESS: Now safe to delete old tokens
+      if (oldAccessToken) {
+        await store.deleteTokenIndex(oldAccessToken);
+      }
+      if (oldRefreshToken) {
+        await store.deleteRefreshTokenIndex(oldRefreshToken);
+      }
 
       return c.json({
         access_token: jwt,
         token_type: "Bearer",
         expires_in: 3600,
         refresh_token: newRefreshToken,
-        scope: "openid profile offline_access",  // Granted scopes
+        scope: "openid profile offline_access",
       });
     }
 
@@ -466,10 +503,105 @@ export function createOAuthRoutes() {
         return c.json({ error: "invalid_request", error_description: "Missing refresh_token" }, 400);
       }
 
-      // Find session by refresh token
-      // Note: In production, you'd want a separate index for refresh tokens
-      // For now, we'll iterate through sessions (not ideal for scale)
-      return c.json({ error: "invalid_grant", error_description: "Refresh token not found" }, 400);
+      // Look up session by refresh token
+      const session = await store.getSessionByRefreshToken(refreshToken);
+      if (!session) {
+        // Clean up orphaned refresh index (session was deleted but index remained)
+        await store.deleteRefreshTokenIndex(refreshToken);
+        return c.json({ error: "invalid_grant", error_description: "Invalid refresh token" }, 400);
+      }
+
+      // Verify refresh token matches (double-check)
+      if (session.refreshToken !== refreshToken) {
+        // Clean up stale refresh index pointing to wrong session
+        await store.deleteRefreshTokenIndex(refreshToken);
+        return c.json({ error: "invalid_grant", error_description: "Refresh token mismatch" }, 400);
+      }
+
+      // Require client binding - reject legacy sessions without clientId
+      if (!session.clientId) {
+        return c.json({ error: "invalid_grant", error_description: "Session requires re-authentication" }, 400);
+      }
+      if (session.clientId !== clientId) {
+        return c.json({ error: "invalid_grant", error_description: "Client mismatch" }, 400);
+      }
+
+      // Save old tokens for cleanup AFTER success
+      const oldRefreshToken = refreshToken;
+      const oldAccessToken = session.accessToken;
+      const oldAccessTokenExpiry = session.accessTokenExpiry;
+      const oldLastUsedAt = session.lastUsedAt;
+
+      // Generate new tokens upfront for rollback tracking
+      const newAccessToken = generateRandomHex(32);
+      const newRefreshToken = generateRandomHex(32);
+
+      try {
+        // Get fresh TGO token using stored credentials
+        const tgoToken = await getTGOToken(session, c.env);
+
+        // Update session with new tokens
+        session.accessToken = newAccessToken;
+        session.refreshToken = newRefreshToken;
+        session.accessTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+        session.tgoToken = tgoToken;
+        session.lastUsedAt = Date.now();
+
+        await store.updateSession(session);
+        await store.indexSessionByToken(session.id, newAccessToken);
+        await store.indexSessionByRefreshToken(session.id, newRefreshToken);
+
+        // Create new JWT
+        const baseUrl = new URL(c.req.url).origin;
+        const secret = new TextEncoder().encode(c.env.JWT_SECRET);
+        const jwt = await new SignJWT({
+          sub: session.userId,
+          sid: session.id,
+          aud: resource || baseUrl,
+          iss: baseUrl,
+          cid: session.clientId,  // Client binding for reconstruction
+          sca: Math.floor(session.createdAt / 1000),  // Session created at (seconds)
+          email_enc: session.encryptedEmail,
+          email_iv: session.encryptionIv,
+          pwd_enc: session.encryptedPassword,
+          pwd_iv: session.encryptionIvPassword || session.encryptionIv,
+        })
+          .setProtectedHeader({ alg: "HS256" })
+          .setIssuedAt()
+          .setExpirationTime("1h")
+          .sign(secret);
+
+        // SUCCESS: Now safe to delete old tokens (Fix 1 + Fix 4)
+        await store.deleteRefreshTokenIndex(oldRefreshToken);
+        if (oldAccessToken) {
+          await store.deleteTokenIndex(oldAccessToken);
+        }
+
+        return c.json({
+          access_token: jwt,
+          token_type: "Bearer",
+          expires_in: 3600,
+          refresh_token: newRefreshToken,
+          scope: "openid profile offline_access",
+        });
+      } catch (error) {
+        // Best-effort rollback to keep old refresh token valid
+        // If failure occurred AFTER updateSession, session has new tokens but client has old token
+        // Restore old tokens so client can retry with their existing refresh token
+        session.accessToken = oldAccessToken;
+        session.refreshToken = oldRefreshToken;
+        session.accessTokenExpiry = oldAccessTokenExpiry;
+        session.lastUsedAt = oldLastUsedAt;
+        await store.updateSession(session).catch(() => {});
+        // Clean up any new indexes that may have been created
+        await store.deleteTokenIndex(newAccessToken).catch(() => {});
+        await store.deleteRefreshTokenIndex(newRefreshToken).catch(() => {});
+
+        return c.json({
+          error: "server_error",
+          error_description: "Token refresh failed, please retry",
+        }, 500);
+      }
     }
 
     return c.json({ error: "unsupported_grant_type" }, 400);
@@ -529,10 +661,32 @@ export async function getSessionFromRequest(
     // Try KV first (has fresh TGO token if available)
     let session = await store.getSession(payload.sid as string);
 
+    // Enforce client binding for KV path - require cid and verify match
+    if (session && (!payload.cid || session.clientId !== payload.cid)) {
+      return null;
+    }
+
     if (!session && payload.email_enc) {
-      // Fallback: Reconstruct session from JWT claims
-      // This handles Cloudflare KV eventual consistency issues where
-      // the /mcp request hits a different edge than where session was written
+      // Validate iat/exp before using
+      const iat = Number(payload.iat);
+      if (!Number.isFinite(iat)) {
+        return null;  // Reject invalid JWT
+      }
+      const exp = Number(payload.exp);
+      if (!Number.isFinite(exp)) {
+        return null;  // Reject invalid JWT
+      }
+
+      // Require clientId in JWT for security
+      const clientId = payload.cid as string | undefined;
+      if (!clientId) {
+        return null;  // Reject legacy JWTs without client binding
+      }
+
+      // Use sca (session_created_at) if present, fallback to iat for legacy tokens
+      const sca = Number(payload.sca);
+      const sessionCreatedAt = Number.isFinite(sca) ? sca * 1000 : iat * 1000;
+
       session = {
         id: payload.sid as string,
         userId: payload.sub as string,
@@ -541,9 +695,11 @@ export async function getSessionFromRequest(
         encryptionIv: payload.email_iv as string,
         encryptionIvPassword: payload.pwd_iv as string,
         accessToken: '',
-        accessTokenExpiry: (payload.exp as number) * 1000,
-        createdAt: (payload.iat as number) * 1000,
+        accessTokenExpiry: exp * 1000,
+        createdAt: sessionCreatedAt,
         lastUsedAt: Date.now(),
+        clientId,  // Restore from JWT
+        sessionExpiresAt: sessionCreatedAt + 30 * 24 * 60 * 60 * 1000,
       };
 
       // Store reconstructed session for future requests (fire and forget)
