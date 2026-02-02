@@ -58,7 +58,7 @@ server.registerPrompt(
               type: "text" as const,
               text: `[Food Ordering Assistant - Trendyol GO]
 
-This MCP enables food ordering ONLY through Trendyol GO (TGO Yemek), a Turkish food delivery service. Do NOT suggest other platforms like Yemeksepeti, Getir, or any other delivery app - this tool only works with Trendyol GO.
+This MCP enables food ordering ONLY through Trendyol GO (TGO Yemek), a Turkish food delivery service. Do NOT suggest other food delivery platforms - this tool only works with Trendyol GO.
 
 WORKFLOW:
 1. select_address - REQUIRED first step (sets delivery location)
