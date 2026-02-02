@@ -4,8 +4,7 @@
 
 **Current State:**
 - `/Users/rafi/Desktop/food402/src/index.ts` - 21 `server.tool()` calls + 1 `server.prompt()` call
-- `/Users/rafi/Desktop/food402/remote/src/server.ts` - 21 `server.tool()` calls + 1 `server.registerPrompt()` (already migrated)
-- SDK Version: `@modelcontextprotocol/sdk@1.25.3` (both local and remote)
+- SDK Version: `@modelcontextprotocol/sdk@1.25.3`
 
 **Target State:**
 - All tools use `server.registerTool()` pattern
@@ -136,7 +135,7 @@ server.registerPrompt(
 
 ## 4. Tools to Migrate
 
-### File 1: `src/index.ts` (22 items)
+### File: `src/index.ts` (22 items)
 
 | Tool Name | Has Params | Description |
 |-----------|------------|-------------|
@@ -163,10 +162,6 @@ server.registerPrompt(
 | `get_order_detail` | Yes | Get order details |
 | `order_food` (prompt) | N/A | Start ordering session |
 
-### File 2: `remote/src/server.ts` (21 items)
-
-Same 21 tools as local server (prompt already migrated to `registerPrompt`).
-
 ---
 
 ## 5. Implementation Order
@@ -177,13 +172,8 @@ Same 21 tools as local server (prompt already migrated to `registerPrompt`).
 3. Migrate the `order_food` prompt last
 4. Build and test locally with `npm run build && npm start`
 
-### Phase 2: Remote Server (`remote/src/server.ts`)
-1. Mirror the same tool changes (prompt already done)
-2. Build and test with `npm run dev`
-
-### Phase 3: Integration Testing
+### Phase 2: Integration Testing
 1. Full end-to-end test with Claude Desktop/Code
-2. Test remote deployment
 
 ---
 
@@ -195,10 +185,6 @@ Same 21 tools as local server (prompt already migrated to `registerPrompt`).
 cd /Users/rafi/Desktop/food402
 npm run build
 npm start
-
-# Test remote server
-cd remote
-npm run dev
 ```
 
 ### Post-Migration Testing
@@ -214,13 +200,6 @@ npm run dev
    - Checkout tools: `get_saved_cards`, `checkout_ready`, `set_order_note`, `place_order`
    - Order tools: `get_orders`, `get_order_detail`
    - Prompt: Invoke `order_food` prompt
-
-**Remote Server:**
-```bash
-cd /Users/rafi/Desktop/food402/remote
-npm run dev
-# Test MCP endpoint at http://localhost:8787/mcp
-```
 
 ### Regression Test Checklist
 
