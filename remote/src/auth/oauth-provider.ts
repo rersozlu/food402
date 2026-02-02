@@ -456,6 +456,7 @@ export function createOAuthRoutes() {
           aud: audience,
           iss: baseUrl,
           cid: session.clientId,  // Client binding for reconstruction
+          sca: Math.floor(session.createdAt / 1000),  // Session created at (seconds)
           email_enc: session.encryptedEmail,
           email_iv: session.encryptionIv,
           pwd_enc: session.encryptedPassword,
@@ -559,6 +560,7 @@ export function createOAuthRoutes() {
           aud: resource || baseUrl,
           iss: baseUrl,
           cid: session.clientId,  // Client binding for reconstruction
+          sca: Math.floor(session.createdAt / 1000),  // Session created at (seconds)
           email_enc: session.encryptedEmail,
           email_iv: session.encryptionIv,
           pwd_enc: session.encryptedPassword,
@@ -659,8 +661,8 @@ export async function getSessionFromRequest(
     // Try KV first (has fresh TGO token if available)
     let session = await store.getSession(payload.sid as string);
 
-    // Enforce client binding for KV path (reject legacy/unbound sessions)
-    if (session && !session.clientId) {
+    // Enforce client binding for KV path - require cid and verify match
+    if (session && (!payload.cid || session.clientId !== payload.cid)) {
       return null;
     }
 
@@ -681,7 +683,10 @@ export async function getSessionFromRequest(
         return null;  // Reject legacy JWTs without client binding
       }
 
-      const jwtIssuedAt = iat * 1000;
+      // Use sca (session_created_at) if present, fallback to iat for legacy tokens
+      const sca = Number(payload.sca);
+      const sessionCreatedAt = Number.isFinite(sca) ? sca * 1000 : iat * 1000;
+
       session = {
         id: payload.sid as string,
         userId: payload.sub as string,
@@ -691,10 +696,10 @@ export async function getSessionFromRequest(
         encryptionIvPassword: payload.pwd_iv as string,
         accessToken: '',
         accessTokenExpiry: exp * 1000,
-        createdAt: jwtIssuedAt,
+        createdAt: sessionCreatedAt,
         lastUsedAt: Date.now(),
         clientId,  // Restore from JWT
-        sessionExpiresAt: jwtIssuedAt + 30 * 24 * 60 * 60 * 1000,
+        sessionExpiresAt: sessionCreatedAt + 30 * 24 * 60 * 60 * 1000,
       };
 
       // Store reconstructed session for future requests (fire and forget)
