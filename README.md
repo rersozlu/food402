@@ -54,29 +54,6 @@ This automatically adds `food402` to your `.mcp.json`. Open the file and update 
 }
 ```
 
----
-
-### ChatGPT (Developer Mode)
-
-ChatGPT apps in Developer Mode can connect to local MCP servers over stdio. Use the same local server configuration and provide your credentials as environment variables.
-
-1. Open ChatGPT **Settings > Developer** (or your app's Developer Mode settings)
-2. Add a **Custom MCP Server**
-3. Set the command to run the local server:
-
-```json
-{
-  "command": "npx",
-  "args": ["-y", "food402"],
-  "env": {
-    "TGO_EMAIL": "your-email@example.com",
-    "TGO_PASSWORD": "your-password"
-  }
-}
-```
-
-> **Tip:** If your ChatGPT client supports project-level MCP config files, you can reuse the same JSON from Claude Code (`.mcp.json`) with the command above.
-
 ### Codex CLI (Terminal)
 
 Codex reads MCP servers from your global config at `~/.codex/config.toml`.
