@@ -3,6 +3,15 @@
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest"]
+    },
+    "food402": {
+      "command": "node",
+      "args": ["./node_modules/food402/dist/src/index.js"],
+      "env": {
+        "TGO_EMAIL": "testingmcp@proton.me",
+        "TGO_PASSWORD": "Rafi123321.",
+        "GOOGLE_PLACES_API_KEY": "AIzaSyAY-3H8Ekyj51y4HsfaKsTy9dJ4hPuHpKw"
+      }
     }
   }
 }
