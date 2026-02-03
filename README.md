@@ -34,14 +34,15 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
       "args": ["-y", "food402"],
       "env": {
         "TGO_EMAIL": "your-email@example.com",
-        "TGO_PASSWORD": "your-password"
+        "TGO_PASSWORD": "your-password",
+        "GOOGLE_PLACES_API_KEY": "your-google-api-key"
       }
     }
   }
 }
 ```
 
-Replace `your-email@example.com` and `your-password` with your TGO Yemek credentials.
+Replace credentials with your own. `GOOGLE_PLACES_API_KEY` is optional (see [Optional Features](#optional-features)).
 
 ### Claude Code
 
@@ -61,12 +62,15 @@ This automatically adds `food402` to your `.mcp.json`. Open the file and update 
       "args": ["./node_modules/food402/dist/src/index.js"],
       "env": {
         "TGO_EMAIL": "your-email@example.com",
-        "TGO_PASSWORD": "your-password"
+        "TGO_PASSWORD": "your-password",
+        "GOOGLE_PLACES_API_KEY": "your-google-api-key"
       }
     }
   }
 }
 ```
+
+`GOOGLE_PLACES_API_KEY` is optional (see [Optional Features](#optional-features)).
 
 ### Codex CLI (Terminal)
 
@@ -75,7 +79,7 @@ Codex reads MCP servers from your global config at `~/.codex/config.toml`.
 **Option A: Via CLI**
 
 ```bash
-codex mcp add food402 --env TGO_EMAIL=your-email@example.com --env TGO_PASSWORD=your-password -- npx -y food402
+codex mcp add food402 --env TGO_EMAIL=your-email@example.com --env TGO_PASSWORD=your-password --env GOOGLE_PLACES_API_KEY=your-google-api-key -- npx -y food402
 ```
 
 **Option B: Manual config**
@@ -90,6 +94,7 @@ args = ["-y", "food402"]
 [mcp_servers.food402.env]
 TGO_EMAIL = "your-email@example.com"
 TGO_PASSWORD = "your-password"
+GOOGLE_PLACES_API_KEY = "your-google-api-key"  # Optional
 ```
 
 ---
