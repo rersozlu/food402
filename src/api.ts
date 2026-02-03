@@ -2,6 +2,8 @@
 
 import { getToken } from "./auth.js";
 import * as sharedApi from "../shared/api.js";
+import { getGoogleReviews as getGoogleReviewsFromModule } from "../shared/modules/google-reviews/index.js";
+import type { GetGoogleReviewsRequest, GoogleReviewsResponse } from "../shared/types.js";
 
 // Re-export all types from shared module
 export type {
@@ -189,4 +191,20 @@ export async function searchRestaurants(
 ) {
   const token = await getToken();
   return sharedApi.searchRestaurants(token, searchQuery, latitude, longitude, page);
+}
+
+// ============================================
+// Google Reviews
+// ============================================
+
+/**
+ * Get Google Reviews for a restaurant.
+ * Uses the google-reviews module which includes LRU caching.
+ */
+export async function getGoogleReviews(request: GetGoogleReviewsRequest): Promise<GoogleReviewsResponse> {
+  // Get API key from environment
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY || "";
+
+  // The module handles caching internally with LRU eviction
+  return getGoogleReviewsFromModule(apiKey, request);
 }

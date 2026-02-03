@@ -457,3 +457,11 @@ export interface OrderDetail {
     phoneNumber: string;
   };
 }
+
+// Google Reviews Types - Re-exported from module
+export type {
+  GoogleReview,
+  GooglePlaceMatch,
+  GoogleReviewsResponse,
+  GetGoogleReviewsRequest,
+} from "./modules/google-reviews/index.js";
