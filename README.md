@@ -168,7 +168,9 @@ The `get_google_reviews` tool allows you to fetch Google Reviews for restaurants
 **To enable Google Reviews:**
 
 1. Get a Google Places API key from the [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable the "Places API" and "Places API (New)" for your project
+2. **Enable BOTH APIs** for your project (both are required):
+   - **Places API (New)** - Used for text search to find restaurants
+   - **Places API** - Used for fetching place details and reviews
 3. Add the key to your MCP server configuration:
 
 ```json
