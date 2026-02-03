@@ -16,7 +16,7 @@ For project overview and usage, see the [README](README.md).
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/your-username/food402.git
+git clone https://github.com/rersozlu/food402.git
 cd food402
 ```
 
