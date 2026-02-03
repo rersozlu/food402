@@ -4,7 +4,7 @@ import {
   calculateLevenshteinSimilarity,
   haversineDistance,
   calculateMatchScore,
-} from "../shared/modules/google-reviews/index.js";
+} from "../../../shared/modules/google-reviews/index.js";
 
 describe("normalizeRestaurantName", () => {
   it("should convert to lowercase", () => {

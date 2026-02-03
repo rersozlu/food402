@@ -4,8 +4,8 @@ import {
   calculateLevenshteinSimilarity,
   normalizeTgoDistanceToKm,
   calculateMatchScore,
-} from "./matching.js";
-import type { GooglePlaceCandidate } from "./types.js";
+} from "../../../shared/modules/google-reviews/matching.js";
+import type { GooglePlaceCandidate } from "../../../shared/modules/google-reviews/types.js";
 
 describe("normalizeTgoDistanceToKm", () => {
   describe("values already in km", () => {

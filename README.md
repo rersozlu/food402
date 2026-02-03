@@ -205,6 +205,10 @@ food402/
 ├── shared/                 # Shared API code
 │   ├── api.ts              # Token-parameterized TGO API functions
 │   └── types.ts            # TypeScript interfaces
+├── test/                   # Test suite
+│   ├── integration/        # API integration tests
+│   ├── security/           # Security validation tests
+│   └── setup/              # Test utilities and fixtures
 ├── package.json            # Root package (npm: food402)
 ├── README.md
 └── CLAUDE.md
@@ -222,6 +226,35 @@ npm start
 # Build TypeScript
 npm run build
 ```
+
+### Testing
+
+The project includes integration tests and security tests using Vitest.
+
+```bash
+# Run all tests
+npm test
+
+# Run security tests only
+npm run test:security
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+**Setup for tests:**
+
+1. Copy `test/.env.test.example` to `test/.env.test`
+2. Add your TGO credentials to `test/.env.test`
+3. Run `npm test`
+
+Tests cover:
+- Address management (cities, districts, neighborhoods)
+- Restaurant discovery and menu browsing
+- Basket/cart operations
+- Payment card retrieval and checkout readiness
+- Order history
+- Security checks for credential handling
 
 ## License
 

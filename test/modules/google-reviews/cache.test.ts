@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { LRUCache, simpleHash, createCacheKey } from "./cache.js";
-import type { GetGoogleReviewsRequest } from "./types.js";
+import { LRUCache, simpleHash, createCacheKey } from "../../../shared/modules/google-reviews/cache.js";
+import type { GetGoogleReviewsRequest } from "../../../shared/modules/google-reviews/types.js";
 
 describe("LRUCache", () => {
   let cache: LRUCache<string>;

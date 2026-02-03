@@ -11,7 +11,8 @@ const food402Config = {
   args: ["./node_modules/food402/dist/src/index.js"],
   env: {
     TGO_EMAIL: "your-email@example.com",
-    TGO_PASSWORD: "your-password"
+    TGO_PASSWORD: "your-password",
+    GOOGLE_PLACES_API_KEY: "your-google-places-api-key"
   }
 };
 
