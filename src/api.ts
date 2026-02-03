@@ -2,6 +2,7 @@
 
 import { getToken } from "./auth.js";
 import * as sharedApi from "../shared/api.js";
+import { getGoogleReviews as getGoogleReviewsFromModule } from "../shared/modules/google-reviews/index.js";
 import type { GetGoogleReviewsRequest, GoogleReviewsResponse } from "../shared/types.js";
 
 // Re-export all types from shared module
@@ -193,48 +194,17 @@ export async function searchRestaurants(
 }
 
 // ============================================
-// Google Reviews with Caching
+// Google Reviews
 // ============================================
 
-interface CacheEntry {
-  data: GoogleReviewsResponse;
-  expiresAt: number;
-}
-
-// Cache with 24-hour TTL, keyed by restaurantId-lat-lng
-const googleReviewsCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-function getCacheKey(request: GetGoogleReviewsRequest): string {
-  // Round lat/lng to 4 decimal places (~11m precision) for cache key
-  const lat = parseFloat(request.latitude).toFixed(4);
-  const lng = parseFloat(request.longitude).toFixed(4);
-  return `${request.restaurantId}-${lat}-${lng}`;
-}
-
+/**
+ * Get Google Reviews for a restaurant.
+ * Uses the google-reviews module which includes LRU caching.
+ */
 export async function getGoogleReviews(request: GetGoogleReviewsRequest): Promise<GoogleReviewsResponse> {
-  const cacheKey = getCacheKey(request);
-  const now = Date.now();
-
-  // Check cache
-  const cached = googleReviewsCache.get(cacheKey);
-  if (cached && cached.expiresAt > now) {
-    return cached.data;
-  }
-
   // Get API key from environment
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY || "";
 
-  // Fetch from Google
-  const result = await sharedApi.getGoogleReviews(apiKey || "", request);
-
-  // Only cache successful results
-  if (result.found) {
-    googleReviewsCache.set(cacheKey, {
-      data: result,
-      expiresAt: now + CACHE_TTL_MS,
-    });
-  }
-
-  return result;
+  // The module handles caching internally with LRU eviction
+  return getGoogleReviewsFromModule(apiKey, request);
 }

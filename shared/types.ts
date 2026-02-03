@@ -458,44 +458,10 @@ export interface OrderDetail {
   };
 }
 
-// Google Reviews Types
-export interface GoogleReview {
-  authorName: string;
-  rating: number;
-  relativeTimeDescription: string;
-  text: string;
-  publishTime: string;
-}
-
-export interface GooglePlaceMatch {
-  placeId: string;
-  displayName: string;
-  formattedAddress: string;
-  location: { latitude: number; longitude: number };
-  matchScore: number;
-}
-
-export interface GoogleReviewsResponse {
-  found: boolean;
-  match?: GooglePlaceMatch;
-  rating?: number;
-  userRatingCount?: number;
-  reviews?: GoogleReview[];
-  comparison?: {
-    tgoRating: number;
-    googleRating: number;
-    ratingDifference: number;
-    summary: string;
-  };
-  error?: string;
-}
-
-export interface GetGoogleReviewsRequest {
-  restaurantId: number;
-  restaurantName: string;
-  neighborhoodName: string;
-  tgoDistance: number;
-  tgoRating: number;
-  latitude: string;
-  longitude: string;
-}
+// Google Reviews Types - Re-exported from module
+export type {
+  GoogleReview,
+  GooglePlaceMatch,
+  GoogleReviewsResponse,
+  GetGoogleReviewsRequest,
+} from "./modules/google-reviews/index.js";
