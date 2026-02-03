@@ -27,6 +27,7 @@ import {
   getOrders,
   getOrderDetail,
   updateCustomerNote,
+  getGoogleReviews,
   type BasketItem,
 } from "./api.js";
 
@@ -797,6 +798,40 @@ server.registerTool(
   async (args) => {
     try {
       const result = await getOrderDetail(args.orderId);
+      return formatResponse(result);
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+// Tool: get_google_reviews
+server.registerTool(
+  "get_google_reviews",
+  {
+    title: "Get Google Reviews",
+    description: "Fetch Google Maps rating and reviews for a restaurant. Uses branch matching to find the correct location. Returns comparison between TGO and Google ratings. Optional - requires GOOGLE_PLACES_API_KEY environment variable.",
+    inputSchema: {
+      restaurantId: z.number().describe("Restaurant ID from TGO"),
+      restaurantName: z.string().describe("Restaurant name from TGO"),
+      neighborhoodName: z.string().describe("Neighborhood name from TGO restaurant data"),
+      tgoDistance: z.number().describe("Distance from TGO restaurant data"),
+      tgoRating: z.number().describe("TGO rating for comparison"),
+      latitude: z.string().describe("User's latitude coordinate"),
+      longitude: z.string().describe("User's longitude coordinate"),
+    },
+  },
+  async (args) => {
+    try {
+      const result = await getGoogleReviews({
+        restaurantId: args.restaurantId,
+        restaurantName: args.restaurantName,
+        neighborhoodName: args.neighborhoodName,
+        tgoDistance: args.tgoDistance,
+        tgoRating: args.tgoRating,
+        latitude: args.latitude,
+        longitude: args.longitude,
+      });
       return formatResponse(result);
     } catch (error) {
       return formatError(error);

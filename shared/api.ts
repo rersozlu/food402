@@ -1231,3 +1231,21 @@ export async function searchRestaurants(
 
 // Re-export types for convenience
 export * from "./types.js";
+
+// Re-export Google Reviews module
+export {
+  // Types
+  type GoogleReview,
+  type GooglePlaceMatch,
+  type GoogleReviewsResponse,
+  type GetGoogleReviewsRequest,
+  type GooglePlaceCandidate,
+  // Functions
+  normalizeRestaurantName,
+  calculateLevenshteinSimilarity,
+  calculateMatchScore,
+  haversineDistance,
+  searchGooglePlace,
+  getGooglePlaceDetails,
+  getGoogleReviews,
+} from "./modules/google-reviews/index.js";

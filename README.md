@@ -159,6 +159,38 @@ Here's the typical workflow when ordering food through the AI assistant:
 | `get_orders` | Get user's order history with status | `page?` |
 | `get_order_detail` | Get detailed order info including delivery status | `orderId` |
 
+## Optional Features
+
+### Google Reviews Integration
+
+The `get_google_reviews` tool allows you to fetch Google Reviews for restaurants, enabling comparison between TGO ratings and Google ratings. This feature is **optional** and requires a Google Places API key.
+
+**To enable Google Reviews:**
+
+1. Get a Google Places API key from the [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable the "Places API" and "Places API (New)" for your project
+3. Add the key to your MCP server configuration:
+
+```json
+{
+  "mcpServers": {
+    "food402": {
+      "command": "npx",
+      "args": ["-y", "food402"],
+      "env": {
+        "TGO_EMAIL": "your-email@example.com",
+        "TGO_PASSWORD": "your-password",
+        "GOOGLE_PLACES_API_KEY": "your-google-api-key"
+      }
+    }
+  }
+}
+```
+
+**Without the API key:** The tool will return a helpful message indicating the feature is unavailable but won't cause any errors. The rest of the food ordering functionality works normally without it.
+
+---
+
 ## Development
 
 ### Repository Structure
