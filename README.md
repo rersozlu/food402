@@ -1,8 +1,22 @@
 # Food402 MCP Server
 
 [![npm version](https://img.shields.io/npm/v/food402.svg)](https://www.npmjs.com/package/food402)
+[![ClawHub](https://img.shields.io/badge/ClawHub-food402-blue)](https://www.clawhub.ai/rersozlu/food402)
 
 An MCP (Model Context Protocol) server that enables AI assistants to order food from TGO Yemek. Simply chat with your AI assistant to browse restaurants, build your order, and complete checkout. Works with Claude, ChatGPT (Developer Mode), and Codex CLI via MCP.
+
+---
+
+## Clawdbot / OpenClaw (AgentSkills)
+
+Food402 is also available as an [AgentSkill on ClawHub](https://www.clawhub.ai/rersozlu/food402) for use with Clawdbot (OpenClaw), Claude Code, Cursor, Codex, Gemini CLI, and other AgentSkills-compatible tools.
+
+**Install via ClawHub:**
+```bash
+clawhub install rersozlu/food402
+```
+
+**Or manually:** Copy the `skill/` folder to `~/.openclaw/skills/food402/` and configure your credentials in `~/.openclaw/openclaw.json`.
 
 ---
 
